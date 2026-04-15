@@ -1,0 +1,37 @@
+name: Auto Publish to GitHub Packages By Tag
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+env:
+  REGISTRY: ghcr.io
+jobs:
+  build-and-push:
+    # runs-on: ubuntu-latest
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: Inject enhanced GitHub environment variables
+        uses: rlespinasse/github-slug-action@v5
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: 从标签获取版本号
+        id: get_version
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          VERSION=$(echo "$TAG_NAME" | sed 's/^v//')
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+      - name: 登录 GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+      - name: 构建并推送指定版本Docker镜像
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_OWNER_PART_SLUG }}/${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }}:${{ steps.get_version.outputs.VERSION }}
+            ${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_OWNER_PART_SLUG }}/${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }}:latest
