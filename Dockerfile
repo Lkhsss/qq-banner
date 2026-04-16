@@ -16,5 +16,9 @@ LABEL version="1.0"
 LABEL description="qq-banner"
 # 从构建阶段复制静态链接的可执行文件
 COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/qq-banner /app/
+COPY --from=builder /app/Toasty.toml /app/Toasty.toml
+COPY --from=builder /app/Toasty.toml /app/toasty.toml
+COPY --from=builder /app/toasty /app/toasty
+RUN mkdir -p /app/data
 
 CMD ["./qq-banner"]

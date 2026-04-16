@@ -7,7 +7,7 @@ env:
 jobs:
   build-and-push:
     # runs-on: ubuntu-latest
-    runs-on: "ubuntu-latest"
+    runs-on: "selfhost"
     steps:
       - name: Inject enhanced GitHub environment variables
         uses: rlespinasse/github-slug-action@v5
@@ -30,5 +30,7 @@ jobs:
         with:
           context: .
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ${{ env.REGISTRY }}/${{ env.GITHUB_REPOSITORY_OWNER_PART_SLUG }}/${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }}:latest

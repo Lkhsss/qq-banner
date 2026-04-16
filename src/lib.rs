@@ -1,3 +1,4 @@
 pub mod model;
+pub mod globals;
 
-pub const DB_PATH: &str = "namelist.sqlite";
+pub use globals::{ADDR, DATA_DIR, DB_PATH, PORT};
