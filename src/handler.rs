@@ -1,6 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::{AppState, error::AppErr, model::User};
+use crate::{AppState, error::AppErr};
+use qq_banner::model::User;
 
 use axum::{
     Json,
@@ -86,4 +87,10 @@ impl UserStatusBack {
             time: 0,
         }
     }
+}
+
+pub async fn list(State(state): State<AppState>) -> Result<Json<Vec<User>>, AppErr> {
+    let mut db = state.0;
+    let users = User::all().exec(&mut db).await?;
+    Ok(Json(users))
 }

@@ -1,30 +1,44 @@
 use anyhow::Result;
-use axum::{Router, routing::post};
-use std::{fs::File, path::Path};
+use axum::{
+    Router,
+    routing::{get, post},
+};
+use qq_banner::DB_PATH;
+use std::path::Path;
 use toasty::Db;
+use toasty_cli::{Config, ToastyCli};
 mod error;
 mod handler;
-mod model;
+
 const addr: &str = "0.0.0.0";
 const port: &str = "6100";
-const db_path: &str = "./namelist.sqlite";
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut db = toasty::Db::builder()
-        .models(toasty::models!(crate::*))
-        .connect(&format!("sqlite:{}", db_path))
+    std::fs::create_dir_all(Path::new("./data"))?;
+    let db_url = format!("sqlite:./data/{}", DB_PATH);
+
+    // 启动服务前自动应用待执行迁移。
+    let migration_db = toasty::Db::builder()
+        .models(toasty::models!(qq_banner::*))
+        .connect(&db_url)
+        .await?;
+    let migration_config = Config::load()?;
+    let migration_cli = ToastyCli::with_config(migration_db, migration_config);
+    migration_cli
+        .parse_from(["qq-banner", "migration", "apply"])
         .await?;
 
-    if !Path::new("RUN").exists() {
-        println!("文件不存在，创建表格");
-        db.push_schema().await?;
-        let _ = File::create(Path::new("RUN"));
-    }
+    // 加载配置
+    let mut db = toasty::Db::builder()
+        .models(toasty::models!(qq_banner::*))
+        .connect(&db_url)
+        .await?;
 
     let state = AppState(db);
 
     let app = Router::new()
         .route("/{id}", post(handler::ban).get(handler::check))
+        .route("/list", get(handler::list))
         .with_state(state);
 
     println!("服务已启动！");

@@ -2,6 +2,7 @@
 name = "qq-banner"
 version = "0.1.0"
 edition = "2024"
+default-run = "qq-banner"
 
 [dependencies]
 anyhow = "1.0.102"
@@ -10,4 +11,5 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 thiserror = "2.0.18"
 toasty = { version = "0.4.0", features = ["sqlite", "serde"] }
+toasty-cli = "0.4.0"
 tokio = { version = "1.52.0", features = ["macros", "rt-multi-thread"] }
