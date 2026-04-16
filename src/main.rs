@@ -3,10 +3,11 @@ use axum::{
     Router,
     routing::{get, post},
 };
-use qq_banner::{ADDR, DATA_DIR, DB_PATH, PORT};
+use qq_banner::{ADDR, DATA_DIR, DB_PATH, PORT, model::Manager};
 use std::path::Path;
 use toasty::Db;
 use toasty_cli::{Config, ToastyCli};
+use uuid::Uuid;
 mod error;
 mod handler;
 
@@ -29,16 +30,40 @@ async fn main() -> Result<()> {
         .await?;
 
     // 加载配置
-    let db = toasty::Db::builder()
+    let mut db = toasty::Db::builder()
         .models(toasty::models!(qq_banner::*))
         .connect(&db_url)
         .await?;
 
+    let random_password = Uuid::new_v4().simple().to_string();
+    let admin = Manager::all()
+        .filter(Manager::fields().name().eq("admin".to_string()))
+        .first()
+        .exec(&mut db)
+        .await?;
+
+    let admin_password = match admin {
+        Some(manager) => manager.password,
+        None => {
+            let manager = toasty::create!(Manager {
+                name: "admin".to_string(),
+                password: random_password,
+            })
+            .exec(&mut db)
+            .await?;
+            manager.password
+        }
+    };
+
+    println!("管理员账号：admin");
+    println!("管理员密码：{}", admin_password);
+
     let state = AppState(db);
 
     let app = Router::new()
-        .route("/{id}", post(handler::ban).get(handler::check))
+        .route("/unban/{id}", post(handler::unban))
         .route("/list", get(handler::list))
+        .route("/{id}", post(handler::ban).get(handler::check))
         .with_state(state);
 
     println!("服务已启动！");

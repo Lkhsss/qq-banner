@@ -1,10 +1,10 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::{AppState, error::AppErr};
-use qq_banner::model::User;
+use qq_banner::model::{Manager, User};
 
 use axum::{
-    Json,
+    Form, Json,
     extract::{Path, State},
 };
 use serde::Serialize;
@@ -93,4 +93,35 @@ pub async fn list(State(state): State<AppState>) -> Result<Json<Vec<User>>, AppE
     let mut db = state.0;
     let users = User::all().exec(&mut db).await?;
     Ok(Json(users))
+}
+
+pub async fn unban(
+    Path(id): Path<u64>,
+    State(state): State<AppState>,
+    Form(manager): Form<Manager>,
+) -> Result<Json<UserStatusBack>, AppErr> {
+    let mut db = state.0;
+
+    let manager_valid = Manager::all()
+        .filter(Manager::fields().name().eq(manager.name))
+        .filter(Manager::fields().password().eq(manager.password))
+        .first()
+        .exec(&mut db)
+        .await?;
+
+    if manager_valid.is_none() {
+        return Err(AppErr::BadPassword);
+    }
+
+    let users = User::all()
+        .filter(User::fields().id().eq(id))
+        .first()
+        .exec(&mut db)
+        .await?;
+
+    if let Some(u) = users {
+        u.delete().exec(&mut db).await?;
+    }
+    println!("id: [{}]解除封禁", id);
+    Ok(Json(UserStatusBack::unbanned(id)))
 }

@@ -13,3 +13,5 @@ thiserror = "2.0.18"
 toasty = { version = "0.4.0", features = ["sqlite", "serde"] }
 toasty-cli = "0.4.0"
 tokio = { version = "1.52.0", features = ["macros", "rt-multi-thread"] }
+uuid = { version = "1.23.1", features = ["v4"] }
+
