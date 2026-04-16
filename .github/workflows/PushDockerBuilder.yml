@@ -7,7 +7,7 @@ env:
 jobs:
   build-and-push:
     # runs-on: ubuntu-latest
-    runs-on: "selfhost"
+    runs-on: "ubuntu-latest"
     steps:
       - name: Inject enhanced GitHub environment variables
         uses: rlespinasse/github-slug-action@v5
