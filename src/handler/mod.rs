@@ -107,7 +107,7 @@ where
 pub async fn list(State(state): State<AppState>) -> Result<Json<Vec<User>>, AppErr> {
     let mut db = state.0;
     let users = User::all().exec(&mut db).await?;
-    println!("{:?}", users);
+
     Ok(Json(users))
 }
 

@@ -5,8 +5,8 @@ use axum::{
     routing::{get, post},
 };
 use axum_extra::extract::cookie::Key;
-use qq_banner::{ADDR, API_PORT, DATA_DIR, DB_PATH, model::Manager};
-use std::path::Path;
+use qq_banner::{ADDR, API_PORT, DATA_DIR, DB_PATH, DIST_DIR, PROJECT_DIR, model::Manager};
+use std::path::{Path, PathBuf};
 use toasty::Db;
 use toasty_cli::{Config, ToastyCli};
 use uuid::Uuid;
@@ -61,6 +61,13 @@ async fn main() -> Result<()> {
 
     println!("管理员账号：admin");
     println!("管理员密码：{}", admin_password);
+
+
+
+    //释放前端目录
+    PROJECT_DIR
+        .extract(PathBuf::from(DIST_DIR))
+        .expect("无法提取项目目录");
 
     let state = AppState(db, Key::generate());
 

@@ -8,7 +8,7 @@ use tower_http::services::{ServeDir, ServeFile};
 use crate::handler;
 use crate::{AppState, error::AppErr};
 
-const DIST_PATH: &str = "template/qq-banner/dist";
+
 
 pub async fn api_service(state: AppState) -> Result<(), AppErr> {
     println!("api服务已启动！");
@@ -32,8 +32,8 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
     println!("webui服务已启动！");
     println!("监听位置：{}", format_args!("{ADDR}:{WEBUI_PORT}"));
     // Vue history 路由在找不到真实文件时回退到 index.html。
-    let web_assets = ServeDir::new(DIST_PATH)
-        .not_found_service(ServeFile::new(format!("{DIST_PATH}/index.html")));
+    let web_assets = ServeDir::new(DIST_DIR)
+        .not_found_service(ServeFile::new(format!("{DIST_DIR}/index.html")));
     //manager route
     let manager_route = Router::new()
         .route("/", get(handler::webui::list_manager))
