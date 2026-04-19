@@ -131,7 +131,6 @@ pub async fn auth(
     let cookie = Cookie::build(("token", access_token))
         .path("/")
         .same_site(SameSite::Strict)
-        .secure(true)
         .http_only(true);
 
     Ok(jar.add(cookie))
