@@ -13,5 +13,12 @@ thiserror = "2.0.18"
 toasty = { version = "0.4.0", features = ["sqlite", "serde"] }
 toasty-cli = "0.4.0"
 tokio = { version = "1.52.0", features = ["macros", "rt-multi-thread"] }
+tower-http = { version = "0.6.8", features = ["fs"] }
 uuid = { version = "1.23.1", features = ["v4"] }
-
+reqwest = { version = "0.12.24", default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
+axum-extra = { version = "0.12.6", features = ["cookie", "cookie-private"] }
+jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
+chrono = "0.4.44"

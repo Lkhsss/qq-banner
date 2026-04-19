@@ -1,15 +1,18 @@
 use anyhow::{Context, Result};
 use axum::{
     Router,
+    extract::FromRef,
     routing::{get, post},
 };
-use qq_banner::{ADDR, DATA_DIR, DB_PATH, PORT, model::Manager};
+use axum_extra::extract::cookie::Key;
+use qq_banner::{ADDR, API_PORT, DATA_DIR, DB_PATH, model::Manager};
 use std::path::Path;
 use toasty::Db;
 use toasty_cli::{Config, ToastyCli};
 use uuid::Uuid;
 mod error;
 mod handler;
+mod service;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -24,6 +27,7 @@ async fn main() -> Result<()> {
     let migration_config = Config::load().context(
         "failed to load Toasty config file; expected Toasty.toml/toasty.toml in current working directory",
     )?;
+
     let migration_cli = ToastyCli::with_config(migration_db, migration_config);
     migration_cli
         .parse_from(["qq-banner", "migration", "apply"])
@@ -58,20 +62,21 @@ async fn main() -> Result<()> {
     println!("管理员账号：admin");
     println!("管理员密码：{}", admin_password);
 
-    let state = AppState(db);
+    let state = AppState(db, Key::generate());
 
-    let app = Router::new()
-        .route("/unban/{id}", post(handler::unban))
-        .route("/list", get(handler::list))
-        .route("/{id}", post(handler::ban).get(handler::check))
-        .with_state(state);
-
-    println!("服务已启动！");
-    println!("监听位置：{}", format_args!("{ADDR}:{PORT}"));
-
-    let listener = tokio::net::TcpListener::bind(format!("{}:{}", ADDR, PORT)).await?;
-    axum::serve(listener, app).await?;
+    let (api_res, webui_res) = tokio::join!(
+        service::api_service(state.clone()),
+        service::webui_service(state)
+    );
+    api_res?;
+    webui_res?;
     Ok(())
 }
 #[derive(Clone)]
-struct AppState(Db);
+struct AppState(Db, Key);
+
+impl FromRef<AppState> for Key {
+    fn from_ref(state: &AppState) -> Self {
+        state.1.clone()
+    }
+}
