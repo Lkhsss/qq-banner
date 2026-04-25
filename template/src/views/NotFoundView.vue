@@ -20,15 +20,19 @@ const router = useRouter()
   place-content: center;
   gap: 0.75rem;
   text-align: center;
+  background: var(--surface-ground);
+  color: var(--text-color);
 }
 
 h1 {
   margin: 0;
   font-size: 4rem;
   line-height: 1;
+  color: var(--text-color);
 }
 
 p {
   margin: 0;
+  color: var(--text-color-secondary);
 }
 </style>

@@ -13,12 +13,14 @@ html,
 body,
 #app {
   min-height: 100%;
+  background: var(--surface-ground);
+  color: var(--text-color);
+  transition: background 0.3s, color 0.3s;
 }
 
 html.my-app-dark,
 html.my-app-dark body,
 html.my-app-dark #app {
-  background: #020617;
-  color: #e2e8f0;
+  color: var(--text-color);
 }
 </style>

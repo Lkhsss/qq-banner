@@ -1,0 +1,1 @@
+ALTER TABLE "manager" ADD COLUMN "permission" SMALLINT NOT NULL;

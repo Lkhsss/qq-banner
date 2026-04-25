@@ -1,17 +1,18 @@
 use anyhow::{Context, Result};
-use axum::{
-    Router,
-    extract::FromRef,
-    routing::{get, post},
-};
+use axum::extract::FromRef;
 use axum_extra::extract::cookie::Key;
-use qq_banner::{ADDR, API_PORT, DATA_DIR, DB_PATH, DIST_DIR, PROJECT_DIR, model::Manager};
+use qq_banner::{
+    DATA_DIR, DB_PATH, DIST_DIR, PROJECT_DIR,
+    model::{Manager, Permission},
+};
 use std::path::{Path, PathBuf};
 use toasty::Db;
 use toasty_cli::{Config, ToastyCli};
 use uuid::Uuid;
 mod error;
+mod extracter;
 mod handler;
+mod middleware;
 mod service;
 
 #[tokio::main]
@@ -52,24 +53,29 @@ async fn main() -> Result<()> {
             let manager = toasty::create!(Manager {
                 name: "admin".to_string(),
                 password: random_password,
+                permission: Permission::SuperAdmin as i16,
             })
             .exec(&mut db)
             .await?;
             manager.password
         }
     };
+    //kv数据库，
+    let metrics_db = sled::open(format!("{}/metrics_db", DATA_DIR))?;
 
     println!("管理员账号：admin");
     println!("管理员密码：{}", admin_password);
-
-
 
     //释放前端目录
     PROJECT_DIR
         .extract(PathBuf::from(DIST_DIR))
         .expect("无法提取项目目录");
 
-    let state = AppState(db, Key::generate());
+    let state = AppState {
+        db,
+        metrics: metrics_db,
+        key: Key::generate(),
+    };
 
     let (api_res, webui_res) = tokio::join!(
         service::api_service(state.clone()),
@@ -80,10 +86,14 @@ async fn main() -> Result<()> {
     Ok(())
 }
 #[derive(Clone)]
-struct AppState(Db, Key);
+struct AppState {
+    db: Db,
+    metrics: sled::Db,
+    key: Key,
+}
 
 impl FromRef<AppState> for Key {
     fn from_ref(state: &AppState) -> Self {
-        state.1.clone()
+        state.key.clone()
     }
 }

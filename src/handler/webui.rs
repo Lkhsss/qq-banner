@@ -10,22 +10,23 @@ use axum::{
     response::IntoResponse,
 };
 use axum_extra::extract::{
-    PrivateCookieJar,
+    CookieJar, PrivateCookieJar,
     cookie::{Cookie, SameSite},
 };
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use qq_banner::{
     SALT,
-    model::{Manager, User},
+    model::{Manager, Permission, User},
 };
-use serde::{Deserialize, Serialize};
+
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::{
     AppState,
     error::AppErr,
-    handler::{AuthManager, UserStatusBack},
+    extracter::{AdminOrAbove, AuthManager, SuperAdminOnly},
+    handler::{Claim, UserStatusBack},
 };
 
 static KEYS: LazyLock<Keys> = LazyLock::new(|| {
@@ -34,35 +35,39 @@ static KEYS: LazyLock<Keys> = LazyLock::new(|| {
 });
 
 pub async fn list_manager(
-    _auth: AuthManager,
+    _auth: AuthManager<SuperAdminOnly>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Manager>>, AppErr> {
-    let mut db = state.0;
+    let mut db = state.db;
     let users = Manager::all().exec(&mut db).await?;
     Ok(Json(users))
 }
 
 pub async fn add_manager(
-    _auth: AuthManager,
+    _auth: AuthManager<SuperAdminOnly>,
     Path(name): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<Manager>, AppErr> {
-    let mut db = state.0;
+    let mut db = state.db;
     let password = Uuid::new_v4().simple().to_string();
-    let manager = toasty::create!(Manager { name, password })
-        .exec(&mut db)
-        .await?;
+    let manager = toasty::create!(Manager {
+        name,
+        password,
+        permission: Permission::Admin as i16,
+    })
+    .exec(&mut db)
+    .await?;
 
     Ok(Json(manager))
 }
 
 pub async fn del_manager(
-    _auth: AuthManager,
+    _auth: AuthManager<SuperAdminOnly>,
     Path(name): Path<String>,
     State(state): State<AppState>,
 ) -> Result<String, AppErr> {
     println!("删除管理账号:{}", name);
-    let mut db = state.0;
+    let mut db = state.db;
 
     Manager::filter_by_name(&name)
         .delete()
@@ -97,17 +102,15 @@ impl Keys {
         }
     }
 }
-#[derive(Debug, Serialize, Deserialize)]
-struct Claim {
-    name: String,
-    exp: i64,
-}
+
+// 登录
 pub async fn auth(
     State(state): State<AppState>,
-    jar: PrivateCookieJar,
+    private_jar: PrivateCookieJar,
+    jar: CookieJar,
     Form(manager): Form<Manager>,
-) -> Result<PrivateCookieJar, AppErr> {
-    let mut db = state.0;
+) -> Result<(PrivateCookieJar, CookieJar), AppErr> {
+    let mut db = state.db;
 
     let manager_valid = Manager::all()
         .filter(Manager::fields().name().eq(&manager.name))
@@ -128,14 +131,17 @@ pub async fn auth(
         exp: expiration,
     };
     let access_token = encode(&Header::default(), &claim, &KEYS.encoding)?;
-    let cookie = Cookie::build(("token", access_token))
+    let cookie_token = Cookie::build(("token", access_token))
         .path("/")
         .same_site(SameSite::Strict)
         .http_only(true);
+    let cookie_permisson =
+        Cookie::build(("permisson", manager_valid.unwrap().permission.to_string())).path("/");
 
-    Ok(jar.add(cookie))
+    Ok((private_jar.add(cookie_token), jar.add(cookie_permisson)))
 }
 
+/// 验证登录
 pub async fn is_login(jar: PrivateCookieJar) -> impl IntoResponse {
     let Some(token_cookie) = jar.get("token") else {
         return (
@@ -149,16 +155,13 @@ pub async fn is_login(jar: PrivateCookieJar) -> impl IntoResponse {
 
     let token = token_cookie.value();
     match decode::<Claim>(token, &KEYS.decoding, &Validation::default()) {
-        Ok(data) => {
-            println!("{} 验证登录", data.claims.name);
-            (
-                StatusCode::OK,
-                Json(json!({
-                    "ok": true,
-                    "name": data.claims.name,
-                })),
-            )
-        }
+        Ok(data) => (
+            StatusCode::OK,
+            Json(json!({
+                "ok": true,
+                "name": data.claims.name,
+            })),
+        ),
         Err(err) => (
             StatusCode::UNAUTHORIZED,
             Json(json!({
@@ -170,11 +173,11 @@ pub async fn is_login(jar: PrivateCookieJar) -> impl IntoResponse {
 }
 
 pub async fn unban(
-    _: AuthManager,
+    _: AuthManager<AdminOrAbove>,
     Path(id): Path<u64>,
     State(state): State<AppState>,
 ) -> Result<Json<UserStatusBack>, AppErr> {
-    let mut db = state.0;
+    let mut db = state.db;
 
     let users = User::all()
         .filter(User::fields().id().eq(id))
@@ -190,7 +193,7 @@ pub async fn unban(
 }
 
 pub async fn ban(
-    _: AuthManager,
+    _: AuthManager<AdminOrAbove>,
     Path(id): Path<u64>,
     State(state): State<AppState>,
 ) -> Result<Json<UserStatusBack>, AppErr> {
@@ -200,7 +203,7 @@ pub async fn ban(
         .expect("Time went backwards");
     let timestamp_secs = since_the_epoch.as_secs();
 
-    let mut db = state.0;
+    let mut db = state.db;
 
     let users = User::all()
         .filter(User::fields().id().eq(id))

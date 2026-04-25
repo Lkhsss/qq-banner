@@ -1,10 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::{
-    AppState,
-    error::AppErr,
-    handler::{AuthManager, UserStatusBack},
-};
+use crate::{AppState, error::AppErr, handler::UserStatusBack};
 use qq_banner::model::{Manager, User};
 
 use axum::{
@@ -17,7 +13,7 @@ pub async fn ban(
     State(state): State<AppState>,
     Form(manager): Form<Manager>,
 ) -> Result<Json<UserStatusBack>, AppErr> {
-    let mut db = state.0;
+    let mut db = state.db;
     //验证密码
     let q = Manager::all()
         .filter(Manager::fields().name().eq(manager.name))
@@ -62,7 +58,7 @@ pub async fn unban(
     State(state): State<AppState>,
     Form(manager): Form<Manager>,
 ) -> Result<Json<UserStatusBack>, AppErr> {
-    let mut db = state.0;
+    let mut db = state.db;
 
     let q = Manager::all()
         .filter(Manager::fields().name().eq(manager.name))
@@ -90,7 +86,7 @@ pub async fn check(
     Path(id): Path<u64>,
     State(state): State<AppState>,
 ) -> Result<Json<UserStatusBack>, AppErr> {
-    let mut db = state.0;
+    let mut db = state.db;
     let users = User::all()
         .filter(User::fields().id().eq(id))
         .first()

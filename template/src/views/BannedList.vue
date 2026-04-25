@@ -5,6 +5,7 @@ import ConfirmDialog from 'primevue/confirmdialog'
 import ContextMenu from 'primevue/contextmenu'
 import InputNumber from 'primevue/inputnumber'
 import type { MenuItem } from 'primevue/menuitem'
+import Paginator, { type PageState } from 'primevue/paginator'
 import Toolbar from 'primevue/toolbar'
 import ToggleSwitch from 'primevue/toggleswitch'
 import { useConfirm } from 'primevue/useconfirm'
@@ -65,9 +66,15 @@ const multiSelectEnabled = ref(false)
 const selectedIds = ref<number[]>([])
 const bannedList = ref<BannedViewItem[]>([])
 const selectedItem = ref<BannedViewItem | null>(null)
+const first = ref(0)
+const rows = ref(10)
 const contextMenuRef = ref<InstanceType<typeof ContextMenu> | null>(null)
 const confirm = useConfirm()
 const toast = useToast()
+
+const pagedBannedList = computed(() => {
+    return bannedList.value.slice(first.value, first.value + rows.value)
+})
 
 const selectedItems = computed(() => {
     const selectedSet = new Set(selectedIds.value)
@@ -118,6 +125,17 @@ watch(error, (value) => {
 
     toast.add({ severity: 'error', summary: '请求失败', detail: value, life: 3000 })
 })
+
+watch([bannedList, rows], () => {
+    if (first.value >= bannedList.value.length) {
+        first.value = Math.max(0, Math.floor((bannedList.value.length - 1) / rows.value) * rows.value)
+    }
+})
+
+function handlePage(event: PageState) {
+    first.value = event.first
+    rows.value = event.rows
+}
 
 function formatUnixTime(unixSeconds: number) {
     return new Date(unixSeconds * 1000).toLocaleString('zh-CN', {
@@ -513,8 +531,8 @@ onMounted(() => {
         </Toolbar>
 
         <ul v-if="bannedList.length > 0" class="list">
-            <li v-for="item in bannedList" :key="item.id" class="item" :class="{ 'item-multi': multiSelectEnabled }"
-                @contextmenu.prevent="showItemContextMenu($event, item)">
+            <li v-for="item in pagedBannedList" :key="item.id" class="item"
+                :class="{ 'item-multi': multiSelectEnabled }" @contextmenu.prevent="showItemContextMenu($event, item)">
                 <Checkbox v-if="multiSelectEnabled" v-model="selectedIds" :value="item.id" class="item-checkbox"
                     aria-label="选择封禁项" />
                 <img class="avatar" :src="item.avatar" :alt="`${item.nickname} 头像`" />
@@ -526,14 +544,17 @@ onMounted(() => {
             </li>
         </ul>
 
+        <Paginator v-if="bannedList.length > 0" class="paginator" :first="first" :rows="rows"
+            :totalRecords="bannedList.length" :rowsPerPageOptions="[5, 10, 20, 50]" @page="handlePage" />
+
         <p v-else class="empty">暂无封禁数据</p>
     </section>
 </template>
 
 <style scoped>
 .panel {
-    background: #fff;
-    border: 1px solid #dbe3f1;
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
     border-radius: 0.9rem;
     padding: 1rem 1.25rem;
 }
@@ -544,14 +565,15 @@ h2 {
 
 p {
     margin: 0 0 0.9rem;
-    color: #475569;
+    color: var(--text-color-secondary);
 }
+
 
 .action-toolbar {
     margin-bottom: 0.9rem;
     border-radius: 0.75rem;
-    border: 1px solid #dbe3f1;
-    background: #f8fafc;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-0);
     padding: 0.55rem;
 }
 
@@ -574,7 +596,7 @@ p {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    color: #334155;
+    color: var(--text-color-secondary);
     font-size: 0.9rem;
 }
 
@@ -589,9 +611,10 @@ p {
 }
 
 :deep(.ban-input .p-inputtext) {
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--surface-border);
     border-radius: 0.5rem;
-    background: #fff;
+    background: var(--surface-0);
+    color: var(--text-color);
     padding: 0.45rem 0.7rem;
     width: 100%;
 }
@@ -607,12 +630,18 @@ p {
     list-style: none;
 }
 
+.paginator {
+    margin-top: 0.7rem;
+    border: 1px solid var(--surface-border);
+    border-radius: 0.6rem;
+}
+
 .item {
     display: flex;
     align-items: center;
     gap: 1rem;
     margin-bottom: 0.5rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--surface-border);
     border-radius: 0.6rem;
     padding: 0.55rem 0.75rem;
     cursor: context-menu;
@@ -626,7 +655,7 @@ p {
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    border: 1px solid #dbe3f1;
+    border: 1px solid var(--surface-border);
     object-fit: cover;
 }
 
@@ -638,32 +667,38 @@ p {
     flex: 1;
 }
 
+
 .nickname {
-    color: #0f172a;
+    color: var(--text-color);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
+
 .qq {
-    color: #64748b;
+    color: var(--text-color-secondary);
 }
 
+
 .time {
-    color: #334155;
+    color: var(--text-color-secondary);
     flex-shrink: 0;
 }
 
+
 .error {
-    color: #b91c1c;
+    color: var(--red-600, #b91c1c);
 }
+
 
 .success {
-    color: #15803d;
+    color: var(--green-600, #15803d);
 }
 
+
 .empty {
-    color: #64748b;
+    color: var(--text-color-secondary);
 }
 
 @media (max-width: 760px) {

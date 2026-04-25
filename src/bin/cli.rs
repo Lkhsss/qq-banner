@@ -1,7 +1,7 @@
 use anyhow::Context;
-use toasty_cli::{Config, ToastyCli};
 use qq_banner::{DATA_DIR, DB_PATH};
 use std::path::Path;
+use toasty_cli::{Config, ToastyCli};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

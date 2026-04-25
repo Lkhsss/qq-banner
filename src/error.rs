@@ -1,3 +1,5 @@
+use std::array::TryFromSliceError;
+
 use axum::{http::StatusCode, response::IntoResponse};
 
 #[derive(Debug, thiserror::Error)]
@@ -12,6 +14,10 @@ pub enum AppErr {
     Upstream(#[from] reqwest::Error),
     #[error("创建token失败: {0}")]
     CreateTokenErr(#[from] jsonwebtoken::errors::Error),
+    #[error("Sled数据库出现错误: {0}")]
+    SledErr(#[from] sled::Error),
+    #[error("数据转换出错: {0}")]
+    Conversion(#[from] TryFromSliceError),
 }
 
 impl IntoResponse for AppErr {
@@ -22,6 +28,8 @@ impl IntoResponse for AppErr {
             AppErr::Io(_) => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
             AppErr::Upstream(_) => (self.to_string(), StatusCode::BAD_GATEWAY),
             AppErr::CreateTokenErr(_) => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
+            AppErr::SledErr(_) => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
+            AppErr::Conversion(_) => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
         };
 
         (statuscode, msg).into_response()
