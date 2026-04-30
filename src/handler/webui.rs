@@ -1,11 +1,8 @@
-use std::{
-    sync::LazyLock,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::sync::LazyLock;
 
 use axum::{
     Form, Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
 };
@@ -20,13 +17,14 @@ use qq_banner::{
 };
 
 use serde_json::{Value, json};
+use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
     AppState,
     error::AppErr,
     extracter::{AdminOrAbove, AuthManager, SuperAdminOnly},
-    handler::{Claim, UserStatusBack},
+    handler::{Claim, UserStatusBack, is_ban_expired, now_unix_secs},
 };
 
 static KEYS: LazyLock<Keys> = LazyLock::new(|| {
@@ -43,6 +41,7 @@ pub async fn list_manager(
     Ok(Json(users))
 }
 
+/// 此处有自定义提取器验证身份，api需要自己调用数据库验证
 pub async fn add_manager(
     _auth: AuthManager<SuperAdminOnly>,
     Path(name): Path<String>,
@@ -110,6 +109,7 @@ pub async fn auth(
     jar: CookieJar,
     Form(manager): Form<Manager>,
 ) -> Result<(PrivateCookieJar, CookieJar), AppErr> {
+    println!("用户：{} 鉴权",manager.name);
     let mut db = state.db;
 
     let manager_valid = Manager::all()
@@ -195,13 +195,10 @@ pub async fn unban(
 pub async fn ban(
     _: AuthManager<AdminOrAbove>,
     Path(id): Path<u64>,
+    Query(params): Query<BanQuery>,
     State(state): State<AppState>,
 ) -> Result<Json<UserStatusBack>, AppErr> {
-    let start = SystemTime::now();
-    let since_the_epoch = start
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
-    let timestamp_secs = since_the_epoch.as_secs();
+    let timestamp_secs = now_unix_secs();
 
     let mut db = state.db;
 
@@ -213,17 +210,28 @@ pub async fn ban(
     //存在则直接返回
     match users {
         Some(u) => {
-            println!("id: [{}] already banned", id);
-            return Ok(Json(UserStatusBack::banned(u)));
+            if is_ban_expired(&u, timestamp_secs) {
+                u.delete().exec(&mut db).await?;
+            } else {
+                println!("id: [{}] already banned", id);
+                return Ok(Json(UserStatusBack::banned(u)));
+            }
         }
         _ => (),
     }
     let user = toasty::create!(User {
         id,
         time: timestamp_secs,
+        duration: params.duration,
     })
     .exec(&mut db)
     .await?;
     println!("Banned QQ : {}", user.id);
     Ok(Json(UserStatusBack::banned(user)))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BanQuery {
+    #[serde(default)]
+    pub duration: u64,
 }

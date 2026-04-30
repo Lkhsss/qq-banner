@@ -11,8 +11,16 @@ use crate::{AppState, error::AppErr};
 pub async fn api_service(state: AppState) -> Result<(), AppErr> {
     println!("api服务已启动！");
     println!("监听位置：{}", format_args!("{ADDR}:{API_PORT}"));
+
+    let permisson_route = Router::new().route("/{id}", get(handler::permission::check_permisson));
+    let manager_route = Router::new().route(
+        "/{id}",
+        post(handler::api::add_manager).delete(handler::api::del_manager),
+    );
     let app = Router::new()
         .nest("/api", common_route(state.clone()))
+        .nest("/api/permission", permisson_route)
+        .nest("/api/manager", manager_route)
         .route(
             "/api/{id}",
             post(handler::api::ban)

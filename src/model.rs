@@ -8,6 +8,7 @@ pub struct User {
     #[key]
     pub id: u64,
     pub time: u64,
+    pub duration: u64,
 }
 
 impl IntoResponse for User {
@@ -26,12 +27,12 @@ pub struct Manager {
     pub permission: i16,
 }
 
-#[derive(Debug, Clone, Copy, Serialize_repr, Deserialize_repr)]
+#[derive(Debug, Clone, Copy, Serialize_repr, Deserialize_repr, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(i16)]
 pub enum Permission {
-    SuperAdmin = 0,
+    SuperAdmin = 2,
     Admin = 1,
-    User = 2,
+    User = 0,
 }
 
 impl From<Permission> for i16 {
@@ -43,7 +44,7 @@ impl From<Permission> for i16 {
 impl From<i16> for Permission {
     fn from(value: i16) -> Self {
         match value {
-            0 => Self::SuperAdmin,
+            2 => Self::SuperAdmin,
             1 => Self::Admin,
             _ => Self::User,
         }
@@ -59,4 +60,3 @@ impl Manager {
         self.permission = permission.into();
     }
 }
-// //做数字映射

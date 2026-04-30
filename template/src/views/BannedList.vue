@@ -3,6 +3,7 @@ import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import ConfirmDialog from 'primevue/confirmdialog'
 import ContextMenu from 'primevue/contextmenu'
+import FloatLabel from 'primevue/floatlabel'
 import InputNumber from 'primevue/inputnumber'
 import type { MenuItem } from 'primevue/menuitem'
 import Paginator, { type PageState } from 'primevue/paginator'
@@ -16,11 +17,13 @@ import { apiFetch } from '@/services/auth'
 type BannedItem = {
     id: number
     time: number
+    duration: number
 }
 
 type BannedViewItem = {
     id: number
     time: number
+    duration: number
     nickname: string
     avatar: string
 }
@@ -29,6 +32,7 @@ type BanResult = {
     status: string
     id: number
     time: number
+    duration: number
 }
 
 type QqUserInfo = {
@@ -62,6 +66,7 @@ const actionSuccess = ref('')
 const banning = ref(false)
 const unbanning = ref(false)
 const banQq = ref<number | null>(null)
+const banDuration = ref<number | null>(0)
 const multiSelectEnabled = ref(false)
 const selectedIds = ref<number[]>([])
 const bannedList = ref<BannedViewItem[]>([])
@@ -141,6 +146,41 @@ function formatUnixTime(unixSeconds: number) {
     return new Date(unixSeconds * 1000).toLocaleString('zh-CN', {
         hour12: false,
     })
+}
+
+function formatDuration(seconds: number) {
+    if (seconds === 0) {
+        return '永久封禁'
+    }
+
+    const days = Math.floor(seconds / 86400)
+    const hours = Math.floor((seconds % 86400) / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const remainSeconds = seconds % 60
+    const parts: string[] = []
+
+    if (days > 0) {
+        parts.push(`${days}天`)
+    }
+    if (hours > 0) {
+        parts.push(`${hours}小时`)
+    }
+    if (minutes > 0) {
+        parts.push(`${minutes}分钟`)
+    }
+    if (remainSeconds > 0 || parts.length === 0) {
+        parts.push(`${remainSeconds}秒`)
+    }
+
+    return parts.join('')
+}
+
+function formatExpireText(item: BannedViewItem) {
+    if (item.duration === 0) {
+        return '到期时间: 永不'
+    }
+
+    return `到期时间: ${formatUnixTime(item.time + item.duration)}`
 }
 
 function getAvatarUrl(qq: number) {
@@ -289,7 +329,7 @@ function isBanResult(value: unknown): value is BanResult {
     }
 
     const data = value as Record<string, unknown>
-    return typeof data.status === 'string' && typeof data.id === 'number' && typeof data.time === 'number'
+    return typeof data.status === 'string' && typeof data.id === 'number' && typeof data.time === 'number' && typeof data.duration === 'number'
 }
 
 function upsertBannedItem(item: BannedViewItem) {
@@ -337,6 +377,17 @@ function openBatchUnbanConfirm() {
         accept: () => {
             void unbanSelectedItems()
         },
+    })
+}
+
+function openBanConfirmDialog() {
+    actionError.value = ''
+    actionSuccess.value = ''
+
+    confirm.require({
+        group: 'ban-user',
+        header: '添加封禁',
+        message: '设置封禁对象与封禁时长（秒）',
     })
 }
 
@@ -431,6 +482,7 @@ async function loadBannedList() {
                 return {
                     id: item.id,
                     time: item.time,
+                    duration: item.duration,
                     nickname: profile.nickname,
                     avatar: profile.avatar,
                 }
@@ -454,15 +506,21 @@ async function banByQq() {
 
     if (qq === null || !Number.isInteger(qq) || qq <= 0) {
         actionError.value = '请输入正确的QQ号'
-        return
+        return false
+    }
+
+    if (banDuration.value === null || !Number.isInteger(banDuration.value) || banDuration.value < 0) {
+        actionError.value = '封禁时长必须为大于等于 0 的整数（秒）'
+        return false
     }
 
     const qqText = String(qq)
+    const duration = banDuration.value
 
     banning.value = true
 
     try {
-        const response = await apiFetch(`/api/${qqText}`, { method: 'POST' })
+        const response = await apiFetch(`/api/${qqText}?duration=${duration}`, { method: 'POST' })
 
         if (!response.ok) {
             throw new Error(`封禁失败: ${response.status}`)
@@ -481,17 +539,29 @@ async function banByQq() {
         upsertBannedItem({
             id: payload.id,
             time: payload.time,
+            duration: payload.duration,
             nickname: profile.nickname,
             avatar: profile.avatar,
         })
 
-        actionSuccess.value = `封禁成功：${payload.id}（${formatUnixTime(payload.time)}）`
+        actionSuccess.value = `封禁成功：${payload.id}（${formatDuration(payload.duration)}）`
         banQq.value = null
+        return true
     } catch (err) {
         actionError.value = err instanceof Error ? err.message : '封禁失败'
+        return false
     } finally {
         banning.value = false
     }
+}
+
+async function submitBanAndClose(acceptCallback: () => void) {
+    const ok = await banByQq()
+    if (!ok) {
+        return
+    }
+
+    acceptCallback()
 }
 
 onMounted(() => {
@@ -502,6 +572,35 @@ onMounted(() => {
 <template>
     <section class="panel">
         <ConfirmDialog />
+        <ConfirmDialog group="ban-user">
+            <template #container="{ message, acceptCallback, rejectCallback }">
+                <form class="ban-dialog" @submit.prevent="submitBanAndClose(acceptCallback)">
+                    <div class="ban-dialog-head">
+                        <h3>{{ message.header }}</h3>
+                        <p>{{ message.message }}</p>
+                    </div>
+
+                    <FloatLabel variant="on">
+                        <InputNumber v-model="banQq" input-id="ban-qq-dialog-input" class="ban-input"
+                            input-class="ban-input-inner" :use-grouping="false" :min="0" :disabled="banning || unbanning" />
+                        <label for="ban-qq-dialog-input">QQ号</label>
+                    </FloatLabel>
+
+                    <FloatLabel variant="on">
+                        <InputNumber v-model="banDuration" input-id="ban-duration-dialog-input" class="ban-input"
+                            input-class="ban-input-inner" :use-grouping="false" :min="0" :disabled="banning || unbanning" />
+                        <label for="ban-duration-dialog-input">封禁时长(秒，0=永久)</label>
+                    </FloatLabel>
+
+                    <div class="ban-dialog-actions">
+                        <Button type="button" label="取消" severity="secondary" variant="outlined"
+                            :disabled="banning" @click="rejectCallback" />
+                        <Button type="submit" severity="danger" :disabled="banning || unbanning"
+                            :label="banning ? '封禁中...' : '确认封禁'" />
+                    </div>
+                </form>
+            </template>
+        </ConfirmDialog>
         <ContextMenu ref="contextMenuRef" :model="contextMenuItems" />
 
         <h2>封禁管理</h2>
@@ -522,11 +621,8 @@ onMounted(() => {
             </template>
 
             <template #end>
-                <InputNumber v-model="banQq" input-id="ban-qq-input" class="ban-input" input-class="ban-input-inner"
-                    :use-grouping="false" :min="0" placeholder="输入要封禁的QQ号" :disabled="banning || unbanning" />
-
-                <Button type="button" class="ban-btn" severity="danger" :disabled="banning || unbanning"
-                    @click="banByQq" :label="banning ? '封禁中...' : '封禁'" />
+                <Button type="button" class="ban-btn" severity="danger" :disabled="banning || unbanning || loading"
+                    @click="openBanConfirmDialog" label="添加封禁" />
             </template>
         </Toolbar>
 
@@ -539,8 +635,10 @@ onMounted(() => {
                 <div class="info-block">
                     <strong class="nickname">{{ item.nickname }}</strong>
                     <span class="qq">QQ: {{ item.id }}</span>
+                    <span class="qq">封禁时长: {{ formatDuration(item.duration) }}</span>
                 </div>
                 <span class="time">封禁时间: {{ formatUnixTime(item.time) }}</span>
+                <span class="time">{{ formatExpireText(item) }}</span>
             </li>
         </ul>
 
@@ -604,6 +702,33 @@ p {
 .ban-btn,
 .batch-unban-btn {
     border-radius: 0.5rem;
+}
+
+.ban-dialog {
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    border-radius: 0.85rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: min(520px, 92vw);
+}
+
+.ban-dialog-head h3 {
+    margin: 0;
+    color: var(--text-color);
+}
+
+.ban-dialog-head p {
+    margin: 0.35rem 0 0;
+    color: var(--text-color-secondary);
+}
+
+.ban-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
 }
 
 .ban-input {
