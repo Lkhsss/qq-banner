@@ -6,9 +6,9 @@ export const authChecking = ref(false)
 export const forceLoggedOut = ref(false)
 
 export enum Permission {
-  SuperAdmin = 0,
+  SuperAdmin = 2,
   Admin = 1,
-  User = 2,
+  User = 0,
 }
 
 export const currentPermission = ref<Permission | null>(null)
@@ -38,7 +38,7 @@ type ApiResponse<T = unknown> = {
 function parsePermissionValue(value: string): Permission | null {
   const normalized = value.trim()
 
-  if (normalized === '0') {
+  if (normalized === '2') {
     return Permission.SuperAdmin
   }
 
@@ -46,7 +46,7 @@ function parsePermissionValue(value: string): Permission | null {
     return Permission.Admin
   }
 
-  if (normalized === '2') {
+  if (normalized === '0') {
     return Permission.User
   }
 
@@ -86,7 +86,7 @@ export function hasPermission(required: Permission) {
     return false
   }
 
-  return currentPermission.value <= required
+  return currentPermission.value >= required
 }
 
 function toUrl(input: RequestInfo | URL) {
