@@ -9,6 +9,7 @@ pub mod api;
 pub mod metrics;
 pub mod permission;
 pub mod webui;
+pub mod health;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Claim {

@@ -24,6 +24,8 @@ pub enum AppErr {
     UserNotFound,
     #[error("管理员已存在")]
     ManagerExists,
+    #[error("数据库健康度不正常")]
+    Database_Unhealth,
 }
 
 impl IntoResponse for AppErr {
@@ -39,6 +41,7 @@ impl IntoResponse for AppErr {
             AppErr::PermissonDenied => (self.to_string(), StatusCode::FORBIDDEN),
             AppErr::UserNotFound => (self.to_string(), StatusCode::UNAUTHORIZED),
             AppErr::ManagerExists => (self.to_string(), StatusCode::CONFLICT),
+            AppErr::Database_Unhealth => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
         };
 
         (statuscode, msg).into_response()

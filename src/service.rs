@@ -96,6 +96,7 @@ fn common_route(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/list", get(handler::list))
         .route("/version", get(handler::version))
+        .route("/health", get(handler::health::health_check))
 }
 
 fn metric_route() -> Router<AppState> {
