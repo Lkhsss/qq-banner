@@ -14,7 +14,7 @@ pub async fn api_service(state: AppState) -> Result<(), AppErr> {
 
     let permisson_route = Router::new().route(
         "/{id}",
-        get(handler::permission::get_permisson).post(handler::permission::check_permisson),
+        get(handler::permission::handle_get_permisson).post(handler::permission::check_permisson),
     );
     let manager_route = Router::new().route(
         "/{id}",

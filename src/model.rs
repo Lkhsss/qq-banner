@@ -33,6 +33,7 @@ pub enum Permission {
     SuperAdmin = 2,
     Admin = 1,
     User = 0,
+    None = -1,
 }
 
 impl From<Permission> for i16 {
@@ -46,7 +47,8 @@ impl From<i16> for Permission {
         match value {
             2 => Self::SuperAdmin,
             1 => Self::Admin,
-            _ => Self::User,
+            0 => Self::User,
+            _ => Self::None,
         }
     }
 }

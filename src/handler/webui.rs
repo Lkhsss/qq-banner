@@ -16,15 +16,15 @@ use qq_banner::{
     model::{Manager, Permission, User},
 };
 
-use serde_json::{Value, json};
 use serde::Deserialize;
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::{
     AppState,
     error::AppErr,
     extracter::{AdminOrAbove, AuthManager, SuperAdminOnly},
-    handler::{Claim, UserStatusBack, is_ban_expired, now_unix_secs},
+    handler::{Claim, UserStatusBack, is_ban_expired, now_unix_secs, permission::get_permisson},
 };
 
 static KEYS: LazyLock<Keys> = LazyLock::new(|| {
@@ -109,7 +109,7 @@ pub async fn auth(
     jar: CookieJar,
     Form(manager): Form<Manager>,
 ) -> Result<(PrivateCookieJar, CookieJar), AppErr> {
-    println!("用户：{} 鉴权",manager.name);
+    println!("用户：{} 鉴权", manager.name);
     let mut db = state.db;
 
     let manager_valid = Manager::all()
@@ -193,7 +193,7 @@ pub async fn unban(
 }
 
 pub async fn ban(
-    _: AuthManager<AdminOrAbove>,
+    operator: AuthManager<AdminOrAbove>,
     Path(id): Path<u64>,
     Query(params): Query<BanQuery>,
     State(state): State<AppState>,
@@ -201,9 +201,14 @@ pub async fn ban(
     let timestamp_secs = now_unix_secs();
 
     let mut db = state.db;
+    //检查操作人权限
+    let permisson = get_permisson(&mut db, &id.to_string()).await?;
 
-    let users = User::all()
-        .filter(User::fields().id().eq(id))
+    if operator.permission <= permisson.into() {
+        return Err(AppErr::PermissonDenied);
+    }
+
+    let users = User::filter(User::fields().id().eq(id))
         .first()
         .exec(&mut db)
         .await?;

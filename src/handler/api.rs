@@ -1,7 +1,7 @@
 use crate::{
     AppState,
     error::AppErr,
-    handler::{UserStatusBack, is_ban_expired, now_unix_secs},
+    handler::{UserStatusBack, is_ban_expired, now_unix_secs, permission::get_permisson},
 };
 use qq_banner::model::{Manager, Permission, User};
 use serde::Deserialize;
@@ -20,17 +20,19 @@ pub async fn ban(
 ) -> Result<Json<UserStatusBack>, AppErr> {
     let mut db = state.db;
     //验证密码
-    let q = Manager::all()
+    let requester = match Manager::all()
         .filter(Manager::fields().name().eq(form.name.clone()))
         .filter(Manager::fields().password().eq(form.password.clone()))
         .first()
         .exec(&mut db)
-        .await?;
-    if q.is_none() {
-        return Err(AppErr::BadPassword);
-    }
-    let timestamp_secs = now_unix_secs();
+        .await?
+    {
+        Some(r) => r,
+        None => return Err(AppErr::BadPassword),
+    };
 
+    let timestamp_secs = now_unix_secs();
+    //查询是否存在
     let users = User::all()
         .filter(User::fields().id().eq(id))
         .first()
@@ -48,6 +50,15 @@ pub async fn ban(
         }
         _ => (),
     }
+
+    //验证权限
+    let permisson = get_permisson(&mut db, &id.to_string()).await?;
+    
+    //如果请求方权限小于被处理方权限，那么返回403
+    if requester.permission<=permisson{
+        return Err(AppErr::PermissonDenied);
+    }
+    // 封禁用户
     let user = toasty::create!(User {
         id,
         time: timestamp_secs,
@@ -55,6 +66,7 @@ pub async fn ban(
     })
     .exec(&mut db)
     .await?;
+
     Ok(Json(UserStatusBack::banned(user)))
 }
 
