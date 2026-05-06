@@ -59,12 +59,16 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
             "/{name}",
             post(handler::webui::add_manager).delete(handler::webui::del_manager),
         );
-
+    let permisson_route = Router::new().route(
+        "/{id}",
+        get(handler::permission::handle_get_permisson),
+    );
     let app = Router::new()
         .nest(
             "/api",
             Router::new()
                 .merge(common_route(state.clone()))
+                .nest("/permission", permisson_route)
                 .route(
                     "/auth",
                     post(handler::webui::auth).get(handler::webui::is_login),

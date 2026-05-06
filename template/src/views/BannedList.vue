@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
+import Chip from 'primevue/chip'
 import ConfirmDialog from 'primevue/confirmdialog'
 import ContextMenu from 'primevue/contextmenu'
 import FloatLabel from 'primevue/floatlabel'
@@ -18,6 +19,7 @@ type BannedItem = {
     id: number
     time: number
     duration: number
+    operator?: string | number
 }
 
 type BannedViewItem = {
@@ -26,6 +28,8 @@ type BannedViewItem = {
     duration: number
     nickname: string
     avatar: string
+    operator: string
+    operatorPermission: PermissionLevel
 }
 
 type BanResult = {
@@ -54,10 +58,20 @@ type CachedQqProfile = QqProfile & {
     expiresAt: number
 }
 
+type PermissionLevel = -1 | 0 | 1 | 2
+
+type CachedPermission = {
+    level: PermissionLevel
+    expiresAt: number
+}
+
 const PROFILE_CACHE_TTL_MS = 10 * 60 * 1000
 const PROFILE_ERROR_CACHE_TTL_MS = 60 * 1000
+const PERMISSION_CACHE_TTL_MS = 60 * 1000
 const qqProfileCache = new Map<number, CachedQqProfile>()
 const qqProfileInFlight = new Map<number, Promise<QqProfile>>()
+const permissionCache = new Map<string, CachedPermission>()
+const permissionInFlight = new Map<string, Promise<PermissionLevel>>()
 
 const loading = ref(false)
 const error = ref('')
@@ -262,6 +276,102 @@ function setCachedProfile(qq: number, profile: QqProfile, ttlMs: number) {
         ...profile,
         expiresAt: Date.now() + ttlMs,
     })
+}
+
+function getCachedPermission(id: string) {
+    const cached = permissionCache.get(id)
+    if (!cached) {
+        return null
+    }
+
+    if (cached.expiresAt <= Date.now()) {
+        permissionCache.delete(id)
+        return null
+    }
+
+    return cached.level
+}
+
+function setCachedPermission(id: string, level: PermissionLevel, ttlMs: number) {
+    permissionCache.set(id, {
+        level,
+        expiresAt: Date.now() + ttlMs,
+    })
+}
+
+async function fetchPermissionFromApi(id: string) {
+    try {
+        const response = await apiFetch(`/api/permission/${id}`, { method: 'GET' })
+        if (!response.ok) {
+            throw new Error(`获取权限失败: ${response.status}`)
+        }
+
+        const payload = (await response.json()) as unknown
+        if (typeof payload !== 'number') {
+            throw new Error('权限返回数据格式不正确')
+        }
+
+        if (payload !== -1 && payload !== 0 && payload !== 1 && payload !== 2) {
+            throw new Error('权限返回数据超出范围')
+        }
+
+        return payload
+    } catch (err) {
+        console.warn('获取权限失败，使用无权限', id, err)
+        return -1
+    }
+}
+
+async function fetchPermissionLevel(id: string) {
+    const cached = getCachedPermission(id)
+    if (cached !== null) {
+        return cached
+    }
+
+    const inFlight = permissionInFlight.get(id)
+    if (inFlight) {
+        return inFlight
+    }
+
+    const task = (async () => {
+        const level = await fetchPermissionFromApi(id)
+        setCachedPermission(id, level, PERMISSION_CACHE_TTL_MS)
+        return level
+    })()
+
+    permissionInFlight.set(id, task)
+
+    try {
+        return await task
+    } finally {
+        permissionInFlight.delete(id)
+    }
+}
+
+function resolveOperatorId(value: unknown) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return String(value)
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim()
+        return trimmed.length > 0 ? trimmed : null
+    }
+
+    return null
+}
+
+function operatorPermissionClass(level: PermissionLevel) {
+    switch (level) {
+        case 2:
+            return 'is-superadmin'
+        case 1:
+            return 'is-admin'
+        case 0:
+            return 'is-user'
+        default:
+            return 'is-none'
+    }
 }
 
 async function fetchQqUserInfoFromApi(qq: number) {
@@ -478,13 +588,23 @@ async function loadBannedList() {
         const list = Array.isArray(data) ? data : []
         const displayList = await Promise.all(
             list.map(async (item) => {
+                const operatorId = resolveOperatorId(item.operator)
+                const operatorName =
+                    typeof item.operator === 'string' && item.operator.trim().length > 0
+                        ? item.operator
+                        : typeof item.operator === 'number'
+                            ? String(item.operator)
+                            : '未知'
                 const profile = await fetchQqUserInfo(item.id)
+                const operatorPermission = operatorId === null ? -1 : await fetchPermissionLevel(operatorId)
                 return {
                     id: item.id,
                     time: item.time,
                     duration: item.duration,
                     nickname: profile.nickname,
                     avatar: profile.avatar,
+                    operator: operatorName,
+                    operatorPermission,
                 }
             }),
         )
@@ -542,6 +662,8 @@ async function banByQq() {
             duration: payload.duration,
             nickname: profile.nickname,
             avatar: profile.avatar,
+            operator: '未知',
+            operatorPermission: -1,
         })
 
         actionSuccess.value = `封禁成功：${payload.id}（${formatDuration(payload.duration)}）`
@@ -582,19 +704,21 @@ onMounted(() => {
 
                     <FloatLabel variant="on">
                         <InputNumber v-model="banQq" input-id="ban-qq-dialog-input" class="ban-input"
-                            input-class="ban-input-inner" :use-grouping="false" :min="0" :disabled="banning || unbanning" />
+                            input-class="ban-input-inner" :use-grouping="false" :min="0"
+                            :disabled="banning || unbanning" />
                         <label for="ban-qq-dialog-input">QQ号</label>
                     </FloatLabel>
 
                     <FloatLabel variant="on">
                         <InputNumber v-model="banDuration" input-id="ban-duration-dialog-input" class="ban-input"
-                            input-class="ban-input-inner" :use-grouping="false" :min="0" :disabled="banning || unbanning" />
+                            input-class="ban-input-inner" :use-grouping="false" :min="0"
+                            :disabled="banning || unbanning" />
                         <label for="ban-duration-dialog-input">封禁时长(秒，0=永久)</label>
                     </FloatLabel>
 
                     <div class="ban-dialog-actions">
-                        <Button type="button" label="取消" severity="secondary" variant="outlined"
-                            :disabled="banning" @click="rejectCallback" />
+                        <Button type="button" label="取消" severity="secondary" variant="outlined" :disabled="banning"
+                            @click="rejectCallback" />
                         <Button type="submit" severity="danger" :disabled="banning || unbanning"
                             :label="banning ? '封禁中...' : '确认封禁'" />
                     </div>
@@ -637,6 +761,8 @@ onMounted(() => {
                     <span class="qq">QQ: {{ item.id }}</span>
                     <span class="qq">封禁时长: {{ formatDuration(item.duration) }}</span>
                 </div>
+                <Chip class="operator-chip" :class="operatorPermissionClass(item.operatorPermission)"
+                    :label="item.operator" />
                 <span class="time">封禁时间: {{ formatUnixTime(item.time) }}</span>
                 <span class="time">{{ formatExpireText(item) }}</span>
             </li>
@@ -782,6 +908,30 @@ p {
     border-radius: 50%;
     border: 1px solid var(--surface-border);
     object-fit: cover;
+}
+
+.operator-chip {
+    flex-shrink: 0;
+}
+
+.operator-chip.is-none {
+    --p-chip-background: var(--surface-200);
+    --p-chip-color: var(--text-color-secondary);
+}
+
+.operator-chip.is-user {
+    --p-chip-background: #e0f2fe;
+    --p-chip-color: #075985;
+}
+
+.operator-chip.is-admin {
+    --p-chip-background: #fef3c7;
+    --p-chip-color: #92400e;
+}
+
+.operator-chip.is-superadmin {
+    --p-chip-background: #fee2e2;
+    --p-chip-color: #991b1b;
 }
 
 .info-block {

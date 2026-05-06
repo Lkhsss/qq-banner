@@ -228,6 +228,7 @@ pub async fn ban(
         id,
         time: timestamp_secs,
         duration: params.duration,
+        operator: operator.name,
     })
     .exec(&mut db)
     .await?;

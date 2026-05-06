@@ -59,10 +59,10 @@ async function submitLogin() {
                 </svg>
                 <div class="login-title">
                     <div class="login-title-main">Welcome Back</div>
-                    <div class="login-title-sub">
+                    <!-- <div class="login-title-sub">
                         <span>Don't have an account? </span>
                         <a class="login-link" role="button">Sign up</a>
-                    </div>
+                    </div> -->
                 </div>
             </div>
             <form class="login-form" @submit.prevent="submitLogin">
@@ -81,7 +81,6 @@ async function submitLogin() {
                 <Button type="submit" :label="loginLoading ? 'Signing In...' : 'Sign In'" class="login-submit"
                     :disabled="loginLoading" />
             </form>
-            <a class="login-link" role="button">Forgot Password?</a>
         </div>
     </div>
 </template>
@@ -94,7 +93,7 @@ async function submitLogin() {
     display: flex;
     align-items: center;
     justify-content: center;
-    background-image: url('https://fqjltiegiezfetthbags.supabase.co/storage/v1/object/public/block.images/blocks/signin/signin-glass.jpg');
+    background-image: url('/signin-glass.jpg');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;

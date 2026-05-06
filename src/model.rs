@@ -9,6 +9,7 @@ pub struct User {
     pub id: u64,
     pub time: u64,
     pub duration: u64,
+    pub operator:String
 }
 
 impl IntoResponse for User {

@@ -38,7 +38,7 @@ pub async fn get_permisson(db: &mut Db, id: &str) -> Result<i16, AppErr> {
     }
 }
 pub async fn handle_get_permisson(
-    Path(id): Path<u64>,
+    Path(id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<String, AppErr> {
     let mut db = state.db;
