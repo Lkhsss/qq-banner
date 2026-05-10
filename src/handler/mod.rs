@@ -3,13 +3,14 @@ use axum::extract::Path;
 use axum::{Json, extract::State};
 use qq_banner::model::User;
 use serde::{Deserialize, Serialize};
+
 use uuid::Uuid;
 
 pub mod api;
+pub mod health;
 pub mod metrics;
 pub mod permission;
 pub mod webui;
-pub mod health;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Claim {
@@ -33,21 +34,26 @@ pub async fn list(State(state): State<AppState>) -> Result<Json<Vec<User>>, AppE
 
     Ok(Json(active_users))
 }
-pub async fn banned_user_count(State(state): State<AppState>) -> Result<String, AppErr> {
+pub async fn banned_user_count_handle(State(state): State<AppState>) -> Result<String, AppErr> {
     let mut db = state.db;
-    let users = User::all().exec(&mut db).await?;
+    let count = banned_user_count(&mut db).await?;
+
+    Ok(count.to_string())
+}
+/// # 从数据库获取被封禁的人数
+pub async fn banned_user_count(db: &mut toasty::Db) -> Result<usize, AppErr> {
+    let users = User::all().exec(db).await?;
     let now = now_unix_secs();
     let mut count = 0usize;
 
     for user in users {
         if is_ban_expired(&user, now) {
-            user.delete().exec(&mut db).await?;
+            user.delete().exec(db).await?;
         } else {
             count += 1;
         }
     }
-
-    Ok(count.to_string())
+    Ok(count)
 }
 
 #[derive(Debug, Serialize)]

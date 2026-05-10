@@ -16,7 +16,7 @@ use qq_banner::{
     model::{Manager, Permission, User},
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -102,13 +102,14 @@ impl Keys {
     }
 }
 
-// 登录
+/// # 登录
+/// form登录
 pub async fn auth(
     State(state): State<AppState>,
     private_jar: PrivateCookieJar,
     jar: CookieJar,
     Form(manager): Form<Manager>,
-) -> Result<(PrivateCookieJar, CookieJar), AppErr> {
+) -> Result<(PrivateCookieJar, CookieJar, ManagerInfo), AppErr> {
     println!("用户：{} 鉴权", manager.name);
     let mut db = state.db;
 
@@ -119,9 +120,15 @@ pub async fn auth(
         .exec(&mut db)
         .await?;
 
-    if manager_valid.is_none() {
-        return Err(AppErr::BadPassword);
-    }
+    let manager_valid = match manager_valid {
+        Some(m) => m,
+        None => return Err(AppErr::BadPassword),
+    };
+
+    let manager_info: ManagerInfo = ManagerInfo {
+        name: manager_valid.name,
+        permission: manager_valid.permission,
+    };
     let expiration = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::seconds(qq_banner::EXPIRE_TIME))
         .expect("valid timestamp")
@@ -136,39 +143,43 @@ pub async fn auth(
         .same_site(SameSite::Strict)
         .http_only(true);
     let cookie_permisson =
-        Cookie::build(("permisson", manager_valid.unwrap().permission.to_string())).path("/");
+        Cookie::build(("permisson", manager_info.permission.to_string())).path("/");
 
-    Ok((private_jar.add(cookie_token), jar.add(cookie_permisson)))
+    let cookie_name = Cookie::build(("name", manager_info.name.clone())).path("/");
+
+    Ok((
+        private_jar.add(cookie_token),
+        jar.add(cookie_permisson).add(cookie_name),
+        manager_info,
+    ))
 }
 
-/// 验证登录
-pub async fn is_login(jar: PrivateCookieJar) -> impl IntoResponse {
+/// # Cookie验证登录
+pub async fn is_login(
+    State(state): State<AppState>,
+    jar: PrivateCookieJar,
+) -> Result<impl IntoResponse, AppErr> {
+    let mut db = state.db;
     let Some(token_cookie) = jar.get("token") else {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(json!({
-                "ok": false,
-                "reason": "未登录：缺少token",
-            })),
-        );
+        return Err(AppErr::LoginErr("缺少token".into()));
     };
 
     let token = token_cookie.value();
     match decode::<Claim>(token, &KEYS.decoding, &Validation::default()) {
-        Ok(data) => (
-            StatusCode::OK,
-            Json(json!({
-                "ok": true,
-                "name": data.claims.name,
-            })),
-        ),
-        Err(err) => (
-            StatusCode::UNAUTHORIZED,
-            Json(json!({
-                "ok": false,
-                "reason": format!("token校验失败: {err}"),
-            })),
-        ),
+        Ok(data) => {
+            let manger = Manager::filter_by_name(data.claims.name)
+                .one()
+                .exec(&mut db)
+                .await?;
+            Ok((
+                StatusCode::OK,
+                ManagerInfo {
+                    name: manger.name,
+                    permission: manger.permission,
+                },
+            ))
+        }
+        Err(err) => return Err(AppErr::LoginErr(format!("token错误: {}", err))),
     }
 }
 
@@ -240,4 +251,15 @@ pub async fn ban(
 pub struct BanQuery {
     #[serde(default)]
     pub duration: u64,
+}
+#[derive(Serialize, Clone)]
+pub struct ManagerInfo {
+    pub name: String,
+    pub permission: i16,
+}
+
+impl IntoResponse for ManagerInfo {
+    fn into_response(self) -> axum::response::Response {
+        Json(self).into_response()
+    }
 }

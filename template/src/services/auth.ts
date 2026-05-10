@@ -25,7 +25,6 @@ apiClient.interceptors.response.use((response) => {
   if (response.status === 401) {
     isAuthenticated.value = false
   }
-
   return response
 })
 

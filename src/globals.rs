@@ -9,4 +9,4 @@ pub const DIST_DIR: &str = "./dist";
 pub const EXPIRE_TIME: i64 = 604800;
 pub const SALT: &str = "qq-banner";
 
-pub static PROJECT_DIR: include_dir::Dir = include_dir!("./template/dist"); //将前端硬编码到项目
+pub static PROJECT_DIR: include_dir::Dir = include_dir!("./DCM-panel/dist"); //将前端硬编码到项目

@@ -4,6 +4,7 @@ use toasty::Db;
 
 use super::*;
 
+/// 供webui用
 pub async fn check_permisson(
     Path(id): Path<u64>,
     State(state): State<AppState>,
@@ -52,7 +53,8 @@ pub async fn get_password(
     Form(manager): Form<Manager>,
 ) -> Result<String, AppErr> {
     let mut db = state.db;
-    let admin = Manager::filter(Manager::fields().name().eq("admin"))
+    
+    let admin = Manager::filter(Manager::fields().name().eq("admin"))//FIXME
         .filter(Manager::fields().password().eq(manager.password))
         .first()
         .exec(&mut db)
@@ -71,3 +73,4 @@ pub async fn get_password(
         None => Err(AppErr::UserNotFound),
     }
 }
+

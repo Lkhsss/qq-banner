@@ -14,6 +14,8 @@ pub enum AppErr {
     Upstream(#[from] reqwest::Error),
     #[error("创建token失败: {0}")]
     CreateTokenErr(#[from] jsonwebtoken::errors::Error),
+    #[error("登陆失败: {0}")]
+    LoginErr(String),
     #[error("Sled数据库出现错误: {0}")]
     SledErr(#[from] sled::Error),
     #[error("数据转换出错: {0}")]
@@ -42,6 +44,7 @@ impl IntoResponse for AppErr {
             AppErr::UserNotFound => (self.to_string(), StatusCode::UNAUTHORIZED),
             AppErr::ManagerExists => (self.to_string(), StatusCode::CONFLICT),
             AppErr::Database_Unhealth => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
+            AppErr::LoginErr(_) => (self.to_string(), StatusCode::UNAUTHORIZED),
         };
 
         (statuscode, msg).into_response()

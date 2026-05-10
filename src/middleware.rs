@@ -1,14 +1,11 @@
 use axum::{
-    Router,
     extract::{Request, State},
-    http,
-    middleware::{self, Next},
+    middleware::Next,
     response::Response,
-    routing::get,
 };
 
 use crate::AppState;
-//记录api请求，有路由匹配才记录
+/// 记录api请求，有路由匹配才记录
 pub async fn record_api(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let metrics = state.metrics;
     let response = next.run(request).await;
@@ -31,7 +28,7 @@ pub async fn record_api(State(state): State<AppState>, request: Request, next: N
     response
 }
 
-//记录所有请求，不管有没有路由匹配
+/// 记录所有请求，不管有没有路由匹配
 pub async fn record_request(
     State(state): State<AppState>,
     request: Request,

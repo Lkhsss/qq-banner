@@ -1,0 +1,9 @@
+default_job = "dev"
+
+[jobs.dev]
+command = ["cargo", "run"]
+need_stdout = true       # 显示程序输出
+background = false       # 前台运行（实时输出）
+on_change_strategy = "kill_then_restart"
+watch = ["DCM-panel/dist"]
+delay = 2000

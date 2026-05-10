@@ -1,1 +1,1 @@
-ALTER TABLE "users" ADD COLUMN "operator" TEXT NOT NULL DEFAULT 'superadmin';
+ALTER TABLE "users" ADD COLUMN "operator" TEXT NOT NULL DEFAULT 'admin';

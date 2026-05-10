@@ -1726,6 +1726,7 @@ dependencies = [
  "axum",
  "axum-extra",
  "chrono",
+ "http",
  "include_dir",
  "jsonwebtoken",
  "reqwest",

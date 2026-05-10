@@ -1,9 +1,15 @@
 use axum::{
-    Router, middleware,
+    Router,
+    http::HeaderValue,
+    middleware,
     routing::{get, post},
 };
 use qq_banner::{globals::WEBUI_PORT, *};
-use tower_http::services::{ServeDir, ServeFile};
+use reqwest::Method;
+use tower_http::{
+    cors::{Any, CorsLayer},
+    services::{ServeDir, ServeFile},
+};
 
 use crate::handler;
 use crate::{AppState, error::AppErr};
@@ -22,6 +28,7 @@ pub async fn api_service(state: AppState) -> Result<(), AppErr> {
             .delete(handler::api::del_manager)
             .get(handler::permission::get_password),
     );
+
     let app = Router::new()
         .nest("/api", common_route(state.clone()))
         .nest("/api/permission", permisson_route)
@@ -49,7 +56,7 @@ pub async fn api_service(state: AppState) -> Result<(), AppErr> {
 pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
     println!("webui服务已启动！");
     println!("监听位置：{}", format_args!("{ADDR}:{WEBUI_PORT}"));
-    // Vue history 路由在找不到真实文件时回退到 index.html。
+    // Vue history 路由在找不到真实文件时回退到 index.html
     let web_assets =
         ServeDir::new(DIST_DIR).not_found_service(ServeFile::new(format!("{DIST_DIR}/index.html")));
     //manager route
@@ -59,10 +66,13 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
             "/{name}",
             post(handler::webui::add_manager).delete(handler::webui::del_manager),
         );
-    let permisson_route = Router::new().route(
-        "/{id}",
-        get(handler::permission::handle_get_permisson),
-    );
+    let permisson_route =
+        Router::new().route("/{id}", get(handler::permission::handle_get_permisson));
+
+    let cors = CorsLayer::new()
+        .allow_methods([Method::GET, Method::POST, Method::DELETE])
+        .allow_origin(Any);
+
     let app = Router::new()
         .nest(
             "/api",
@@ -90,6 +100,7 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
             state.clone(),
             crate::middleware::record_request,
         )) //记录所有请求
+        .layer(cors)
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(format!("{}:{}", ADDR, WEBUI_PORT)).await?;
@@ -105,8 +116,9 @@ fn common_route(state: AppState) -> Router<AppState> {
 
 fn metric_route() -> Router<AppState> {
     Router::new()
+        .route("/", get(handler::metrics::all_metrics))
         .route("/success", get(handler::metrics::success))
         .route("/fail", get(handler::metrics::fail))
-        .route("/banned", get(handler::banned_user_count))
+        .route("/banned", get(handler::banned_user_count_handle))
         .route("/request", get(handler::metrics::all_request))
 }
