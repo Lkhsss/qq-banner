@@ -2,13 +2,19 @@ use anyhow::{Context, Result};
 use axum::extract::FromRef;
 use axum_extra::extract::cookie::Key;
 use qq_banner::{
-    DATA_DIR, DB_PATH, DIST_DIR, PROJECT_DIR,
+    DATA_DIR, DB_PATH, DIST_DIR, METRIC_BANNED, PROJECT_DIR,
     model::{Manager, Permission},
 };
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::atomic::Ordering,
+};
 use toasty::Db;
 use toasty_cli::{Config, ToastyCli};
 use uuid::Uuid;
+
+use crate::database::banned_user_count;
+mod database;
 mod error;
 mod extracter;
 mod handler;
@@ -39,6 +45,9 @@ async fn main() -> Result<()> {
         .models(toasty::models!(qq_banner::*))
         .connect(&db_url)
         .await?;
+    // 读取数据库数据写入内存
+    let banned = banned_user_count(&mut db).await?;
+    METRIC_BANNED.store(banned, Ordering::Relaxed);
 
     let random_password = Uuid::new_v4().simple().to_string();
     let admin = Manager::all()
@@ -62,6 +71,8 @@ async fn main() -> Result<()> {
     };
     //kv数据库，
     let metrics_db = sled::open(format!("{}/metrics_db", DATA_DIR))?;
+    // 读取数据库数据写入内存
+    database::sync_metrics(&metrics_db).await;
 
     println!("管理员账号：admin");
     println!("管理员密码：{}", admin_password);
@@ -76,6 +87,8 @@ async fn main() -> Result<()> {
         metrics: metrics_db,
         key: Key::generate(),
     };
+    // 启动后台数据库刷新服务，将内存中的数据写入sled
+    database::start_persist_task(state.clone());
 
     let (api_res, webui_res) = tokio::join!(
         service::api_service(state.clone()),

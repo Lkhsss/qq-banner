@@ -1,3 +1,5 @@
+use super::*;
+
 use crate::{
     AppState,
     error::AppErr,
@@ -10,8 +12,6 @@ use axum::{
     Form, Json,
     extract::{Path, State},
 };
-
-use super::*;
 
 pub async fn ban(
     Path(id): Path<u64>,
@@ -53,9 +53,9 @@ pub async fn ban(
 
     //验证权限
     let permisson = get_permisson(&mut db, &id.to_string()).await?;
-    
+
     //如果请求方权限小于被处理方权限，那么返回403
-    if requester.permission<=permisson{
+    if requester.permission <= permisson {
         return Err(AppErr::PermissonDenied);
     }
     // 封禁用户
@@ -67,7 +67,8 @@ pub async fn ban(
     })
     .exec(&mut db)
     .await?;
-
+    //自增加1
+    METRIC_BANNED.fetch_add(1, Ordering::Relaxed);
     Ok(Json(UserStatusBack::banned(user)))
 }
 
@@ -103,6 +104,8 @@ pub async fn unban(
 
     if let Some(u) = users {
         u.delete().exec(&mut db).await?;
+        //自增减1
+        METRIC_BANNED.fetch_sub(1, Ordering::Relaxed);
     }
     println!("id: [{}]解除封禁", id);
     Ok(Json(UserStatusBack::unbanned(id)))

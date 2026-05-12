@@ -1,9 +1,11 @@
+use crate::database::banned_user_count;
 use crate::{AppState, error::AppErr};
 use axum::extract::Path;
 use axum::{Json, extract::State};
 use qq_banner::model::User;
+use qq_banner::{METRIC_BANNED, METRIC_FAIL, METRIC_REQUEST, METRIC_SUCCESS, METRICS_DELAY};
 use serde::{Deserialize, Serialize};
-
+use std::sync::atomic::Ordering;
 use uuid::Uuid;
 
 pub mod api;
@@ -39,21 +41,6 @@ pub async fn banned_user_count_handle(State(state): State<AppState>) -> Result<S
     let count = banned_user_count(&mut db).await?;
 
     Ok(count.to_string())
-}
-/// # 从数据库获取被封禁的人数
-pub async fn banned_user_count(db: &mut toasty::Db) -> Result<usize, AppErr> {
-    let users = User::all().exec(db).await?;
-    let now = now_unix_secs();
-    let mut count = 0usize;
-
-    for user in users {
-        if is_ban_expired(&user, now) {
-            user.delete().exec(db).await?;
-        } else {
-            count += 1;
-        }
-    }
-    Ok(count)
 }
 
 #[derive(Debug, Serialize)]

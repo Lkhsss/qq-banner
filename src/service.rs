@@ -121,4 +121,5 @@ fn metric_route() -> Router<AppState> {
         .route("/fail", get(handler::metrics::fail))
         .route("/banned", get(handler::banned_user_count_handle))
         .route("/request", get(handler::metrics::all_request))
+        .route("/sse", get(handler::metrics::sse))
 }

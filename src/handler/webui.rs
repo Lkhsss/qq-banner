@@ -1,3 +1,4 @@
+use super::*;
 use std::sync::LazyLock;
 
 use axum::{
@@ -17,7 +18,7 @@ use qq_banner::{
 };
 
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
@@ -198,6 +199,8 @@ pub async fn unban(
 
     if let Some(u) = users {
         u.delete().exec(&mut db).await?;
+        //自增减1
+        METRIC_BANNED.fetch_sub(1, Ordering::Relaxed);
     }
     println!("webui: id: [{}]解除封禁", id);
     Ok(Json(UserStatusBack::unbanned(id)))
@@ -243,6 +246,8 @@ pub async fn ban(
     })
     .exec(&mut db)
     .await?;
+    //自增加1
+    METRIC_BANNED.fetch_add(1, Ordering::Relaxed);
     println!("Banned QQ : {}", user.id);
     Ok(Json(UserStatusBack::banned(user)))
 }
