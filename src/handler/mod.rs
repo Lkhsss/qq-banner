@@ -1,9 +1,11 @@
 use crate::database::banned_user_count;
 use crate::{AppState, error::AppErr};
-use axum::extract::Path;
+use axum::extract::{Path, Query};
 use axum::{Json, extract::State};
 use qq_banner::model::User;
-use qq_banner::{METRIC_BANNED, METRIC_FAIL, METRIC_REQUEST, METRIC_SUCCESS, METRICS_DELAY};
+use qq_banner::{
+    METRIC_BANNED, METRIC_FAIL, METRIC_REQUEST, METRIC_SUCCESS, METRICS_DELAY, PAGING_DEFAULT,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
 use uuid::Uuid;
@@ -19,10 +21,51 @@ pub struct Claim {
     pub name: String,
     pub exp: i64,
 }
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Paging {
+    page: Option<usize>,
+    size: Option<usize>,
+    order: Option<Order>,
+}
 
-pub async fn list(State(state): State<AppState>) -> Result<Json<Vec<User>>, AppErr> {
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Order {
+    Asc,
+    Desc,
+}
+
+impl Default for Paging {
+    fn default() -> Self {
+        Self {
+            page: Some(1),
+            size: Some(PAGING_DEFAULT),
+            order: Some(Order::Asc),
+        }
+    }
+}
+pub async fn list(
+    State(state): State<AppState>,
+    Query(paging): Query<Paging>,
+) -> Result<Json<Vec<User>>, AppErr> {
     let mut db = state.db;
-    let users = User::all().exec(&mut db).await?;
+    let page = paging.page.unwrap_or(1);
+    let size = paging.size.unwrap_or(PAGING_DEFAULT);
+    let order = paging.order.unwrap_or(Order::Desc);
+
+    let offset = (page - 1) * size;
+    // 排序
+    let ord = match order {
+        Order::Asc => User::fields().time().asc(),
+        Order::Desc => User::fields().time().desc(),
+    };
+
+    let users = User::all()
+        .order_by(ord)
+        .limit(size)
+        .offset(offset)
+        .exec(&mut db)
+        .await?;
+
     let now = now_unix_secs();
     let mut active_users = Vec::with_capacity(users.len());
 

@@ -6,3 +6,12 @@ cargo run --bin cli -- migration generate
 ```
 cargo run --bin cli -- migration apply
 ```
+
+//TODO 
+- 关键字过滤
+- 标记统计
+- webui
+  - 筛选
+  - 管理管理员界面
+- bot
+  - 权限指令只能私聊触发

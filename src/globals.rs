@@ -11,6 +11,8 @@ pub const DIST_DIR: &str = "./dist";
 pub const EXPIRE_TIME: i64 = 604800;
 pub const SALT: &str = "qq-banner";
 
+// 分页
+pub const PAGING_DEFAULT: usize = 20;
 // 指标的sse推送间隔
 pub const METRICS_DELAY: u64 = 3000;
 // 数据库刷新时间

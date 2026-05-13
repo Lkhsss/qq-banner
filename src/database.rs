@@ -73,7 +73,7 @@ pub fn start_persist_task(state: AppState) {
             let fail = METRIC_FAIL.load(Ordering::Relaxed);
             let request = METRIC_REQUEST.load(Ordering::Relaxed);
             // println!("总数：{} 写入数据库", request);
-            //FIXME
+            //TODO 加入日志系统
 
             // 2. 写入 sled
             let _ = &metrics
