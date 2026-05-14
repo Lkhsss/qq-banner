@@ -30,7 +30,7 @@ pub async fn api_service(state: AppState) -> Result<(), AppErr> {
     );
 
     let app = Router::new()
-        .nest("/api", common_route(state.clone()))
+        .nest("/api", common_route())
         .nest("/api/permission", permisson_route)
         .nest("/api/manager", manager_route)
         .route(
@@ -57,8 +57,10 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
     println!("webui服务已启动！");
     println!("监听位置：{}", format_args!("{ADDR}:{WEBUI_PORT}"));
     // Vue history 路由在找不到真实文件时回退到 index.html
-    let web_assets =
-        ServeDir::new(DIST_DIR).not_found_service(ServeFile::new(format!("{DIST_DIR}/index.html")));
+    let web_assets = ServeDir::new(DIST_DIR);
+    // .not_found_service(ServeFile::new(format!("{DIST_DIR}/index.html")));
+
+    
     //manager route
     let manager_route = Router::new()
         .route("/", get(handler::webui::list_manager))
@@ -77,7 +79,7 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
         .nest(
             "/api",
             Router::new()
-                .merge(common_route(state.clone()))
+                .merge(common_route())
                 .nest("/permission", permisson_route)
                 .route(
                     "/auth",
@@ -107,9 +109,10 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
     Ok(axum::serve(listener, app).await?)
 }
 
-fn common_route(state: AppState) -> Router<AppState> {
+fn common_route() -> Router<AppState> {
     Router::new()
         .route("/list", get(handler::list))
+        .route("/list/count", get(handler::banned_user_count_handle))
         .route("/version", get(handler::version))
         .route("/health", get(handler::health::health_check))
 }

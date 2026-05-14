@@ -78,9 +78,10 @@ async fn main() -> Result<()> {
     println!("管理员密码：{}", admin_password);
 
     //释放前端目录
-    PROJECT_DIR
-        .extract(PathBuf::from(DIST_DIR))
-        .expect("无法提取项目目录");
+    // FIXME
+    // PROJECT_DIR
+    //     .extract(PathBuf::from(DIST_DIR))
+    //     .expect("无法提取项目目录");
 
     let state = AppState {
         db,

@@ -22,10 +22,11 @@ pub struct Claim {
     pub exp: i64,
 }
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Paging {
+pub struct PagingAndFiliter {
     page: Option<usize>,
     size: Option<usize>,
     order: Option<Order>,
+    filiter: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -34,18 +35,19 @@ pub enum Order {
     Desc,
 }
 
-impl Default for Paging {
+impl Default for PagingAndFiliter {
     fn default() -> Self {
         Self {
             page: Some(1),
             size: Some(PAGING_DEFAULT),
             order: Some(Order::Asc),
+            filiter: None,
         }
     }
 }
 pub async fn list(
     State(state): State<AppState>,
-    Query(paging): Query<Paging>,
+    Query(paging): Query<PagingAndFiliter>,
 ) -> Result<Json<Vec<User>>, AppErr> {
     let mut db = state.db;
     let page = paging.page.unwrap_or(1);
@@ -59,7 +61,7 @@ pub async fn list(
         Order::Desc => User::fields().time().desc(),
     };
 
-    let users = User::all()
+    let mut users = User::all()
         .order_by(ord)
         .limit(size)
         .offset(offset)
@@ -69,6 +71,11 @@ pub async fn list(
     let now = now_unix_secs();
     let mut active_users = Vec::with_capacity(users.len());
 
+    //筛选数据
+    match paging.filiter {
+        Some(f) => users.retain(|x| x.id.to_string().contains(&f)),
+        None => (),
+    }
     for user in users {
         if is_ban_expired(&user, now) {
             user.delete().exec(&mut db).await?;
@@ -76,14 +83,38 @@ pub async fn list(
             active_users.push(user);
         }
     }
-
     Ok(Json(active_users))
 }
-pub async fn banned_user_count_handle(State(state): State<AppState>) -> Result<String, AppErr> {
-    let mut db = state.db;
-    let count = banned_user_count(&mut db).await?;
 
-    Ok(count.to_string())
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Filiter {
+    pub filiter: Option<String>,
+}
+
+pub async fn banned_user_count_handle(
+    State(state): State<AppState>,
+    Query(filiter): Query<Filiter>,
+) -> Result<String, AppErr> {
+    match filiter.filiter {
+        Some(f) => {
+            let mut db = state.db;
+            let users = User::all().exec(&mut db).await?;
+            let now = now_unix_secs();
+            let mut count = 0;
+
+            for user in users {
+                if is_ban_expired(&user, now) {
+                    user.delete().exec(&mut db).await?;
+                } else {
+                    if user.id.to_string().contains(&f) {
+                        count += 1;
+                    }
+                }
+            }
+            Ok(count.to_string())
+        }
+        None => Ok(METRIC_BANNED.load(Ordering::Relaxed).to_string()),
+    }
 }
 
 #[derive(Debug, Serialize)]

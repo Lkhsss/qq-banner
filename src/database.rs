@@ -12,6 +12,7 @@ use crate::{
     handler::{is_ban_expired, now_unix_secs},
 };
 
+
 /// # 从数据库获取被封禁的人数
 pub async fn banned_user_count(db: &mut toasty::Db) -> Result<u64, AppErr> {
     let users = User::all().exec(db).await?;
@@ -27,6 +28,8 @@ pub async fn banned_user_count(db: &mut toasty::Db) -> Result<u64, AppErr> {
     }
     Ok(count)
 }
+
+
 
 /// 指标聚合
 #[derive(Debug, Serialize)]
