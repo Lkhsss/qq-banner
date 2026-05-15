@@ -12,6 +12,13 @@ pub struct User {
     pub operator:String
 }
 
+impl AsRef<User> for User {
+    fn as_ref(&self) -> &User {
+        self
+    }
+}
+
+
 impl IntoResponse for User {
     fn into_response(self) -> axum::response::Response {
         Json(json!(self)).into_response()

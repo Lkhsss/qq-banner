@@ -22,11 +22,10 @@ pub struct Claim {
     pub exp: i64,
 }
 #[derive(Serialize, Deserialize, Debug)]
-pub struct PagingAndFiliter {
+pub struct Paging {
     page: Option<usize>,
     size: Option<usize>,
     order: Option<Order>,
-    filiter: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -35,19 +34,19 @@ pub enum Order {
     Desc,
 }
 
-impl Default for PagingAndFiliter {
+impl Default for Paging {
     fn default() -> Self {
         Self {
             page: Some(1),
             size: Some(PAGING_DEFAULT),
             order: Some(Order::Asc),
-            filiter: None,
         }
     }
 }
 pub async fn list(
     State(state): State<AppState>,
-    Query(paging): Query<PagingAndFiliter>,
+    Query(paging): Query<Paging>,
+    Query(filter): Query<Filter>,
 ) -> Result<Json<Vec<User>>, AppErr> {
     let mut db = state.db;
     let page = paging.page.unwrap_or(1);
@@ -72,7 +71,7 @@ pub async fn list(
     let mut active_users = Vec::with_capacity(users.len());
 
     //筛选数据
-    match paging.filiter {
+    match filter.filter {
         Some(f) => users.retain(|x| x.id.to_string().contains(&f)),
         None => (),
     }
@@ -87,15 +86,15 @@ pub async fn list(
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Filiter {
-    pub filiter: Option<String>,
+pub struct Filter {
+    pub filter: Option<String>,
 }
 
 pub async fn banned_user_count_handle(
     State(state): State<AppState>,
-    Query(filiter): Query<Filiter>,
+    Query(filiter): Query<Filter>,
 ) -> Result<String, AppErr> {
-    match filiter.filiter {
+    match filiter.filter {
         Some(f) => {
             let mut db = state.db;
             let users = User::all().exec(&mut db).await?;
@@ -131,7 +130,8 @@ pub enum UserStatus {
 }
 
 impl UserStatusBack {
-    fn banned(u: User) -> Self {
+    pub fn banned<U: AsRef<User>>(user: U) -> Self {
+        let u= user.as_ref();
         Self {
             status: UserStatus::Banned,
             id: u.id,
@@ -139,7 +139,7 @@ impl UserStatusBack {
             duration: u.duration,
         }
     }
-    fn unbanned(id: u64) -> Self {
+    pub fn unbanned(id: u64) -> Self {
         Self {
             status: UserStatus::Unbanned,
             id,

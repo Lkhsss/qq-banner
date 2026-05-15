@@ -1,18 +1,62 @@
 use std::{sync::atomic::Ordering, time::Duration};
 
 use axum::{Json, response::IntoResponse};
-use qq_banner::{DATABASE_FLUSH_DELAY, METRIC_FAIL, METRIC_REQUEST, METRIC_SUCCESS, model::User};
+use qq_banner::{
+    DATABASE_FLUSH_DELAY, METRIC_BANNED, METRIC_FAIL, METRIC_REQUEST, METRIC_SUCCESS, model::User,
+};
 use serde::Serialize;
 use sled::IVec;
+use toasty;
 use tokio::time::sleep;
 
 use crate::{
     AppState,
     error::AppErr,
-    handler::{is_ban_expired, now_unix_secs},
+    handler::{UserStatusBack, is_ban_expired, now_unix_secs},
 };
 
+pub trait Banner {
+    fn is_ban_expired(user: &User, now: u64) -> bool;
+    async fn ban<U: AsRef<User>>(&mut self, new_user: U) -> Result<UserStatusBack, AppErr>;
+}
 
+impl Banner for toasty::Db {
+    fn is_ban_expired(user: &User, now: u64) -> bool {
+        user.duration != 0 && now >= user.time.saturating_add(user.duration)
+    }
+    /// # 封禁用户，并计数器+1
+    /// 分离出来的业务函数
+    async fn ban<U: AsRef<User>>(&mut self, new_user: U) -> Result<UserStatusBack, AppErr> {
+        let new_user = new_user.as_ref();
+        let users = User::filter(User::fields().id().eq(new_user.id))
+            .first()
+            .exec(self)
+            .await?;
+        match users {
+            Some(mut u) => {
+                u.update()
+                    .operator(&new_user.operator)
+                    .duration(new_user.duration)
+                    .time(new_user.time)
+                    .exec(self)
+                    .await?;
+                Ok(UserStatusBack::banned(new_user))
+            }
+            None => {
+                let user = toasty::create!(User {
+                    id: new_user.id,
+                    time: new_user.time,
+                    duration: new_user.duration,
+                    operator: &new_user.operator,
+                })
+                .exec(self)
+                .await?;
+                METRIC_BANNED.fetch_add(1, Ordering::Relaxed);
+                Ok(UserStatusBack::banned(user))
+            }
+        }
+    }
+}
 /// # 从数据库获取被封禁的人数
 pub async fn banned_user_count(db: &mut toasty::Db) -> Result<u64, AppErr> {
     let users = User::all().exec(db).await?;
@@ -28,8 +72,6 @@ pub async fn banned_user_count(db: &mut toasty::Db) -> Result<u64, AppErr> {
     }
     Ok(count)
 }
-
-
 
 /// 指标聚合
 #[derive(Debug, Serialize)]

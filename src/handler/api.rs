@@ -2,6 +2,7 @@ use super::*;
 
 use crate::{
     AppState,
+    database::Banner,
     error::AppErr,
     handler::{UserStatusBack, is_ban_expired, now_unix_secs, permission::get_permisson},
 };
@@ -18,6 +19,8 @@ pub async fn ban(
     State(state): State<AppState>,
     Form(form): Form<BanForm>,
 ) -> Result<Json<UserStatusBack>, AppErr> {
+    //获取时间
+    let timestamp_secs = now_unix_secs();
     let mut db = state.db;
     //验证密码
     let requester = match Manager::all()
@@ -31,26 +34,6 @@ pub async fn ban(
         None => return Err(AppErr::BadPassword),
     };
 
-    let timestamp_secs = now_unix_secs();
-    //查询是否存在
-    let users = User::all()
-        .filter(User::fields().id().eq(id))
-        .first()
-        .exec(&mut db)
-        .await?;
-    //存在则直接返回
-    match users {
-        Some(u) => {
-            if is_ban_expired(&u, timestamp_secs) {
-                u.delete().exec(&mut db).await?;
-            } else {
-                println!("id: [{}] already banned", id);
-                return Ok(Json(UserStatusBack::banned(u)));
-            }
-        }
-        _ => (),
-    }
-
     //验证权限
     let permisson = get_permisson(&mut db, &id.to_string()).await?;
 
@@ -58,18 +41,16 @@ pub async fn ban(
     if requester.permission <= permisson {
         return Err(AppErr::PermissonDenied);
     }
-    // 封禁用户
-    let user = toasty::create!(User {
+
+    let user = User {
         id,
         time: timestamp_secs,
         duration: form.duration,
         operator: requester.name,
-    })
-    .exec(&mut db)
-    .await?;
-    //自增加1
-    METRIC_BANNED.fetch_add(1, Ordering::Relaxed);
-    Ok(Json(UserStatusBack::banned(user)))
+    };
+    // 封禁用户
+    let new_user = db.ban(user).await?;
+    Ok(Json(new_user))
 }
 
 #[derive(Debug, Deserialize)]

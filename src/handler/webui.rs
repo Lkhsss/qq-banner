@@ -28,6 +28,8 @@ use crate::{
     handler::{Claim, UserStatusBack, is_ban_expired, now_unix_secs, permission::get_permisson},
 };
 
+use crate::database::Banner;
+
 static KEYS: LazyLock<Keys> = LazyLock::new(|| {
     // let secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     Keys::new(SALT.as_bytes())
@@ -213,7 +215,6 @@ pub async fn ban(
     State(state): State<AppState>,
 ) -> Result<Json<UserStatusBack>, AppErr> {
     let timestamp_secs = now_unix_secs();
-
     let mut db = state.db;
     //检查操作人权限
     let permisson = get_permisson(&mut db, &id.to_string()).await?;
@@ -222,40 +223,22 @@ pub async fn ban(
         return Err(AppErr::PermissonDenied);
     }
 
-    let users = User::filter(User::fields().id().eq(id))
-        .first()
-        .exec(&mut db)
-        .await?;
-    //存在则直接返回
-    match users {
-        Some(u) => {
-            if is_ban_expired(&u, timestamp_secs) {
-                u.delete().exec(&mut db).await?;
-            } else {
-                println!("id: [{}] already banned", id);
-                return Ok(Json(UserStatusBack::banned(u)));
-            }
-        }
-        _ => (),
-    }
-    let user = toasty::create!(User {
+    let new_user = User {
         id,
         time: timestamp_secs,
-        duration: params.duration,
+        duration: params.duration.unwrap_or(0),
         operator: operator.name,
-    })
-    .exec(&mut db)
-    .await?;
-    //自增加1
-    METRIC_BANNED.fetch_add(1, Ordering::Relaxed);
-    println!("Banned QQ : {}", user.id);
-    Ok(Json(UserStatusBack::banned(user)))
+    };
+    let banner = db.ban(new_user).await?;
+    //FIXME 将业务分离到database
+    // api模块未分离
+    println!("Banned QQ : {}", banner.id);
+    Ok(Json(banner))
 }
 
 #[derive(Debug, Deserialize)]
 pub struct BanQuery {
-    #[serde(default)]
-    pub duration: u64,
+    pub duration: Option<u64>,
 }
 #[derive(Serialize, Clone)]
 pub struct ManagerInfo {
