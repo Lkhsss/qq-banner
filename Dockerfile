@@ -1,10 +1,14 @@
 FROM rust:alpine AS builder
-RUN apk add --no-cache musl-dev nodejs npm
+RUN apk add --no-cache musl-dev nodejs-current npm
 WORKDIR /app
 COPY . .
 
 # 在构建 Rust 之前先构建前端资源
-RUN npm install -g pnpm && cd DCM-panel && pnpm install && pnpm build
+RUN corepack enable \
+	&& corepack prepare pnpm@latest --activate \
+	&& cd DCM-panel \
+	&& pnpm install \
+	&& pnpm build
 # 关键：针对musl目标进行静态编译
 RUN cargo build --release --target x86_64-unknown-linux-musl
 
