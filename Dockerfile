@@ -1,10 +1,11 @@
 FROM rust:alpine AS builder
-RUN apk add --no-cache musl-dev nodejs-current npm
+RUN apk add --no-cache musl-dev nodejs-current npm git
 WORKDIR /app
 COPY . .
 
 # 在构建 Rust 之前先构建前端资源
-RUN corepack enable \
+RUN git submodule update --init --recursive \
+	&& corepack enable \
 	&& corepack prepare pnpm@latest --activate \
 	&& cd DCM-panel \
 	&& pnpm install \
