@@ -42,11 +42,16 @@ pub async fn ban(
         return Err(AppErr::PermissonDenied);
     }
 
+    let operator = if requester.permission == (Permission::SuperAdmin as i16) {
+        form.operator.unwrap_or(requester.name)
+    } else {
+        form.name
+    };
     let user = User {
         id,
         time: timestamp_secs,
         duration: form.duration,
-        operator: requester.name,
+        operator: operator,
     };
     // 封禁用户
     let new_user = db.ban(user).await?;
@@ -59,6 +64,7 @@ pub struct BanForm {
     pub password: String,
     #[serde(default)]
     pub duration: u64,
+    pub operator: Option<String>,
 }
 
 pub async fn unban(

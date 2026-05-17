@@ -2,6 +2,8 @@ name: Auto Publish to GitHub Packages By Push
 
 on:
   push:
+    tags-ignore:
+      - '*'
 env:
   REGISTRY: ghcr.io
 jobs:
