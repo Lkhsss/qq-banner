@@ -11,6 +11,7 @@ use axum_extra::extract::{
     CookieJar, PrivateCookieJar,
     cookie::{Cookie, SameSite},
 };
+
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use qq_banner::{
     SALT,
@@ -51,6 +52,11 @@ pub async fn add_manager(
     State(state): State<AppState>,
 ) -> Result<Json<Manager>, AppErr> {
     let mut db = state.db;
+    let q = Manager::filter_by_name(&name).first().exec(&mut db).await?;
+
+    if q.is_some() {
+        return Err(AppErr::ManagerExists);
+    }
     let password = Uuid::new_v4().simple().to_string();
     let manager = toasty::create!(Manager {
         name,
@@ -63,12 +69,39 @@ pub async fn add_manager(
     Ok(Json(manager))
 }
 
+pub async fn refresh_password_manager(
+    _auth: AuthManager<SuperAdminOnly>,
+    Path(name): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<Manager>, AppErr> {
+    let mut db = state.db;
+    let password = Uuid::new_v4().simple().to_string();
+
+    Manager::filter(Manager::fields().name().eq(&name))
+        .update()
+        .password(password)
+        .exec(&mut db)
+        .await?;
+    let manager = Manager::filter(Manager::fields().name().eq(&name))
+        .first()
+        .exec(&mut db)
+        .await?;
+
+    match manager {
+        Some(m) => Ok(Json(m)),
+        None => Err(AppErr::Database_Unhealth),
+    }
+}
+
 pub async fn del_manager(
     _auth: AuthManager<SuperAdminOnly>,
     Path(name): Path<String>,
     State(state): State<AppState>,
 ) -> Result<String, AppErr> {
     println!("删除管理账号:{}", name);
+    if name == "admin" {
+        return Err(AppErr::PermissonDenied);
+    }
     let mut db = state.db;
 
     Manager::filter_by_name(&name)
@@ -230,8 +263,7 @@ pub async fn ban(
         operator: operator.name,
     };
     let banner = db.ban(new_user).await?;
-    //FIXME 将业务分离到database
-    // api模块未分离
+
     println!("Banned QQ : {}", banner.id);
     Ok(Json(banner))
 }

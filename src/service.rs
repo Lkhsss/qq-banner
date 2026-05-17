@@ -60,13 +60,14 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
     let web_assets = ServeDir::new(DIST_DIR);
     // .not_found_service(ServeFile::new(format!("{DIST_DIR}/index.html")));
 
-    
     //manager route
     let manager_route = Router::new()
         .route("/", get(handler::webui::list_manager))
         .route(
             "/{name}",
-            post(handler::webui::add_manager).delete(handler::webui::del_manager),
+            post(handler::webui::add_manager)
+                .delete(handler::webui::del_manager)
+                .patch(handler::webui::refresh_password_manager),
         );
     let permisson_route =
         Router::new().route("/{id}", get(handler::permission::handle_get_permisson));
