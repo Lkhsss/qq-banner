@@ -1,0 +1,4 @@
+[submodule "DCM-panel"]
+	path = DCM-panel
+	url = https://github.com/Lkhsss/DCM-panel.git
+	branch = main
