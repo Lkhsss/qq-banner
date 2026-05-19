@@ -1,14 +1,14 @@
 use axum::{
-    Router,
-    http::HeaderValue,
-    middleware,
+    Router, middleware,
     routing::{get, post},
 };
 use qq_banner::{globals::WEBUI_PORT, *};
 use reqwest::Method;
 use tower_http::{
+    compression::Compression,
+    compression::CompressionLayer,
     cors::{Any, CorsLayer},
-    services::{ServeDir, ServeFile},
+    services::ServeDir,
 };
 
 use crate::handler;
@@ -30,7 +30,7 @@ pub async fn api_service(state: AppState) -> Result<(), AppErr> {
     );
 
     let app = Router::new()
-        .nest("/api", common_route())
+        .nest("/api", common_route_bundle())
         .nest("/api/permission", permisson_route)
         .nest("/api/manager", manager_route)
         .route(
@@ -47,6 +47,7 @@ pub async fn api_service(state: AppState) -> Result<(), AppErr> {
             state.clone(),
             crate::middleware::record_request,
         )) //记录所有请求
+        .layer(compression_bundle())
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(format!("{}:{}", ADDR, API_PORT)).await?;
@@ -80,7 +81,7 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
         .nest(
             "/api",
             Router::new()
-                .merge(common_route())
+                .merge(common_route_bundle())
                 .nest("/permission", permisson_route)
                 .route(
                     "/auth",
@@ -96,7 +97,7 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
                     state.clone(),
                     crate::middleware::record_api,
                 ))
-                .nest("/metrics", metric_route()), //放layer后面防止统计,
+                .nest("/metrics", metric_route_bundle()), //放layer后面防止统计,
         )
         .fallback_service(web_assets)
         .layer(middleware::from_fn_with_state(
@@ -104,13 +105,14 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
             crate::middleware::record_request,
         )) //记录所有请求
         .layer(cors)
+        .layer(compression_bundle())
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(format!("{}:{}", ADDR, WEBUI_PORT)).await?;
     Ok(axum::serve(listener, app).await?)
 }
 
-fn common_route() -> Router<AppState> {
+fn common_route_bundle() -> Router<AppState> {
     Router::new()
         .route("/list", get(handler::list))
         .route("/list/count", get(handler::banned_user_count_handle))
@@ -118,7 +120,7 @@ fn common_route() -> Router<AppState> {
         .route("/health", get(handler::health::health_check))
 }
 
-fn metric_route() -> Router<AppState> {
+fn metric_route_bundle() -> Router<AppState> {
     Router::new()
         .route("/", get(handler::metrics::all_metrics))
         .route("/success", get(handler::metrics::success))
@@ -126,4 +128,8 @@ fn metric_route() -> Router<AppState> {
         .route("/banned", get(handler::banned_user_count_handle))
         .route("/request", get(handler::metrics::all_request))
         .route("/sse", get(handler::metrics::sse))
+}
+
+fn compression_bundle() -> CompressionLayer {
+    CompressionLayer::new().zstd(true).gzip(true)
 }

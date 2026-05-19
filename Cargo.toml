@@ -1,6 +1,6 @@
 [package]
 name = "qq-banner"
-version = "2.6.4"
+version = "2.6.5"
 edition = "2024"
 default-run = "qq-banner"
 
@@ -14,7 +14,7 @@ thiserror = "2.0.18"
 toasty = { version = "0.4.0", features = ["sqlite", "serde"] }
 toasty-cli = "0.4.0"
 tokio = { version = "1.52.0", features = ["macros", "rt-multi-thread"] }
-tower-http = { version = "0.6.8", features = ["cors", "fs"] }
+tower-http = { version = "0.6.8", features = ["compression-gzip", "compression-zstd", "cors", "fs"] }
 uuid = { version = "1.23.1", features = ["v4"] }
 reqwest = { version = "0.12.24", default-features = false, features = [
     "json",
