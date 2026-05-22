@@ -22,6 +22,11 @@ pub async fn ban(
     //获取时间
     let timestamp_secs = now_unix_secs();
     let mut db = state.db;
+    
+    // 禁止自己操作自己
+    if form.name == id.to_string() {
+        Err(AppErr::SelfOperationProhibited)?;
+    }
     //验证密码
     let requester = match Manager::all()
         .filter(Manager::fields().name().eq(form.name.clone()))

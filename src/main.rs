@@ -2,11 +2,11 @@ use anyhow::{Context, Result};
 use axum::extract::FromRef;
 use axum_extra::extract::cookie::Key;
 use qq_banner::{
-    DATA_DIR, DB_PATH, DIST_DIR, METRIC_BANNED, PROJECT_DIR,
+    DATA_DIR, DB_PATH, METRIC_BANNED,
     model::{Manager, Permission},
 };
 use std::{
-    path::{Path, PathBuf},
+    path::Path,
     sync::atomic::Ordering,
 };
 use toasty::Db;
@@ -78,9 +78,9 @@ async fn main() -> Result<()> {
     println!("管理员密码：{}", admin_password);
 
     //释放前端目录
-    PROJECT_DIR
-        .extract(PathBuf::from(DIST_DIR))
-        .expect("无法提取项目目录");
+    // PROJECT_DIR
+    //     .extract(PathBuf::from(DIST_DIR))
+    //     .expect("无法提取项目目录");
 
     let state = AppState {
         db,

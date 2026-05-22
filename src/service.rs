@@ -11,6 +11,8 @@ use tower_http::{
     services::ServeDir,
 };
 
+use memory_serve::{self, MemoryServe};
+
 use crate::handler;
 use crate::{AppState, error::AppErr};
 
@@ -57,9 +59,22 @@ pub async fn api_service(state: AppState) -> Result<(), AppErr> {
 pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
     println!("webui服务已启动！");
     println!("监听位置：{}", format_args!("{ADDR}:{WEBUI_PORT}"));
+    
     // Vue history 路由在找不到真实文件时回退到 index.html
-    let web_assets = ServeDir::new(DIST_DIR);
+    // let web_assets = ServeDir::new(DIST_DIR);
     // .not_found_service(ServeFile::new(format!("{DIST_DIR}/index.html")));
+
+    let memory_router = memory_serve::load!()
+        // 设置默认索引文件
+        .index_file(Some(DIST_INDEX))
+        // 关键：SPA 回退，所有未匹配的路由都返回 index.html
+        .fallback(Some(DIST_INDEX))
+        // 可选：开启 clean URLs（会自动把 /about 映射到 /about.html）
+        .enable_clean_url(true)
+        // 根据你的需要调整缓存策略
+        .html_cache_control(memory_serve::CacheControl::NoCache)
+        .cache_control(memory_serve::CacheControl::Long)
+        .into_router();
 
     //manager route
     let manager_route = Router::new()
@@ -99,7 +114,7 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
                 ))
                 .nest("/metrics", metric_route_bundle()), //放layer后面防止统计,
         )
-        .fallback_service(web_assets)
+        .merge(memory_router)
         .layer(middleware::from_fn_with_state(
             state.clone(),
             crate::middleware::record_request,

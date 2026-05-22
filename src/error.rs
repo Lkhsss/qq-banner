@@ -22,6 +22,8 @@ pub enum AppErr {
     Conversion(#[from] TryFromSliceError),
     #[error("权限不足")]
     PermissonDenied,
+    #[error("禁止对自己执行操作")]
+    SelfOperationProhibited,
     #[error("用户不存在")]
     UserNotFound,
     #[error("管理员已存在")]
@@ -45,6 +47,7 @@ impl IntoResponse for AppErr {
             AppErr::ManagerExists => (self.to_string(), StatusCode::CONFLICT),
             AppErr::Database_Unhealth => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
             AppErr::LoginErr(_) => (self.to_string(), StatusCode::UNAUTHORIZED),
+            AppErr::SelfOperationProhibited => (self.to_string(), StatusCode::FORBIDDEN),
         };
 
         (statuscode, msg).into_response()
