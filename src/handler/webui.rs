@@ -26,7 +26,7 @@ use crate::{
     AppState,
     error::AppErr,
     extracter::{AdminOrAbove, AuthManager, SuperAdminOnly},
-    handler::{Claim, UserStatusBack, is_ban_expired, now_unix_secs, permission::get_permisson},
+    handler::{Claim, UserStatusBack, now_unix_secs, permission::get_permisson},
 };
 
 use crate::database::Banner;
@@ -37,8 +37,8 @@ static KEYS: LazyLock<Keys> = LazyLock::new(|| {
 });
 
 pub async fn list_manager(
-    _auth: AuthManager<SuperAdminOnly>,
     State(state): State<AppState>,
+    _auth: AuthManager<SuperAdminOnly>,
 ) -> Result<Json<Vec<Manager>>, AppErr> {
     let mut db = state.db;
     let users = Manager::all().exec(&mut db).await?;
@@ -47,9 +47,9 @@ pub async fn list_manager(
 
 /// 此处有自定义提取器验证身份，api需要自己调用数据库验证
 pub async fn add_manager(
-    _auth: AuthManager<SuperAdminOnly>,
     Path(name): Path<String>,
     State(state): State<AppState>,
+    _auth: AuthManager<SuperAdminOnly>,
 ) -> Result<Json<Manager>, AppErr> {
     let mut db = state.db;
     let q = Manager::filter_by_name(&name).first().exec(&mut db).await?;
@@ -70,9 +70,9 @@ pub async fn add_manager(
 }
 
 pub async fn refresh_password_manager(
-    _auth: AuthManager<SuperAdminOnly>,
     Path(name): Path<String>,
     State(state): State<AppState>,
+    _auth: AuthManager<SuperAdminOnly>,
 ) -> Result<Json<Manager>, AppErr> {
     let mut db = state.db;
     let password = Uuid::new_v4().simple().to_string();
@@ -94,9 +94,9 @@ pub async fn refresh_password_manager(
 }
 
 pub async fn del_manager(
-    _auth: AuthManager<SuperAdminOnly>,
     Path(name): Path<String>,
     State(state): State<AppState>,
+    _auth: AuthManager<SuperAdminOnly>,
 ) -> Result<String, AppErr> {
     println!("删除管理账号:{}", name);
     if name == "admin" {
@@ -220,9 +220,9 @@ pub async fn is_login(
 }
 
 pub async fn unban(
-    _: AuthManager<AdminOrAbove>,
     Path(id): Path<u64>,
     State(state): State<AppState>,
+    _: AuthManager<AdminOrAbove>,
 ) -> Result<Json<UserStatusBack>, AppErr> {
     let mut db = state.db;
 
@@ -242,10 +242,10 @@ pub async fn unban(
 }
 
 pub async fn ban(
-    operator: AuthManager<AdminOrAbove>,
     Path(id): Path<u64>,
     Query(params): Query<BanQuery>,
     State(state): State<AppState>,
+    operator: AuthManager<AdminOrAbove>,
 ) -> Result<Json<UserStatusBack>, AppErr> {
     let timestamp_secs = now_unix_secs();
     let mut db = state.db;
