@@ -35,7 +35,7 @@ pub async fn api_service(state: AppState) -> Result<(), AppErr> {
         .nest("/api/manager", manager_route)
         .route(
             "/api/{id}",
-            post(handler::api::ban)
+            post(handler::banmanagement::ban)
                 .get(handler::api::check)
                 .delete(handler::api::unban),
         )
@@ -89,8 +89,8 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
                 .route("/qq/userinfo/{id}", get(handler::webui::qq_userinfo))
                 .nest("/manager", manager_route)
                 .route(
-                    "/{id}",
-                    post(handler::webui::ban).delete(handler::webui::unban),
+                    "/{id}", //TODO
+                    post(handler::banmanagement::ban).delete(handler::webui::unban),
                 )
                 .route_layer(middleware::from_fn_with_state(
                     state.clone(),

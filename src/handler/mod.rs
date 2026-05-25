@@ -1,4 +1,3 @@
-use crate::database::banned_user_count;
 use crate::{AppState, error::AppErr};
 use axum::extract::{Path, Query};
 use axum::{Json, extract::State};
@@ -15,6 +14,8 @@ pub mod health;
 pub mod metrics;
 pub mod permission;
 pub mod webui;
+
+pub mod banmanagement;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Claim {
@@ -124,14 +125,14 @@ pub struct UserStatusBack {
     duration: u64,
 }
 #[derive(Debug, Serialize)]
-pub enum UserStatus {
+enum UserStatus {
     Banned,
     Unbanned,
 }
 
 impl UserStatusBack {
     pub fn banned<U: AsRef<User>>(user: U) -> Self {
-        let u= user.as_ref();
+        let u = user.as_ref();
         Self {
             status: UserStatus::Banned,
             id: u.id,
