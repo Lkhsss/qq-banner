@@ -29,8 +29,6 @@ use crate::{
     handler::{Claim, UserStatusBack, now_unix_secs, permission::get_permisson},
 };
 
-use crate::database::Banner;
-
 static KEYS: LazyLock<Keys> = LazyLock::new(|| {
     // let secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     Keys::new(SALT.as_bytes())
@@ -219,59 +217,39 @@ pub async fn is_login(
     }
 }
 
-pub async fn unban(
-    Path(id): Path<u64>,
-    State(state): State<AppState>,
-    _: AuthManager<AdminOrAbove>,
-) -> Result<Json<UserStatusBack>, AppErr> {
-    let mut db = state.db;
+/// FIXME
 
-    let users = User::all()
-        .filter(User::fields().id().eq(id))
-        .first()
-        .exec(&mut db)
-        .await?;
+// pub async fn ban(
+//     Path(id): Path<u64>,
+//     Query(params): Query<BanQuery>,
+//     State(state): State<AppState>,
+//     operator: AuthManager<AdminOrAbove>,
+// ) -> Result<Json<UserStatusBack>, AppErr> {
+//     let timestamp_secs = now_unix_secs();
+//     let mut db = state.db;
+//     //检查操作人权限
+//     let permisson = get_permisson(&mut db, &id.to_string()).await?;
 
-    if let Some(u) = users {
-        u.delete().exec(&mut db).await?;
-        //自增减1
-        METRIC_BANNED.fetch_sub(1, Ordering::Relaxed);
-    }
-    println!("webui: id: [{}]解除封禁", id);
-    Ok(Json(UserStatusBack::unbanned(id)))
-}
+//     if operator.permission <= permisson.into() {
+//         return Err(AppErr::PermissonDenied);
+//     }
 
-pub async fn ban(
-    Path(id): Path<u64>,
-    Query(params): Query<BanQuery>,
-    State(state): State<AppState>,
-    operator: AuthManager<AdminOrAbove>,
-) -> Result<Json<UserStatusBack>, AppErr> {
-    let timestamp_secs = now_unix_secs();
-    let mut db = state.db;
-    //检查操作人权限
-    let permisson = get_permisson(&mut db, &id.to_string()).await?;
+//     let new_user = User {
+//         id,
+//         time: timestamp_secs,
+//         duration: params.duration.unwrap_or(0),
+//         operator: operator.name,
+//     };
+//     let banner = db.ban(new_user).await?;
 
-    if operator.permission <= permisson.into() {
-        return Err(AppErr::PermissonDenied);
-    }
+//     println!("Banned QQ : {}", banner.id);
+//     Ok(Json(banner))
+// }
 
-    let new_user = User {
-        id,
-        time: timestamp_secs,
-        duration: params.duration.unwrap_or(0),
-        operator: operator.name,
-    };
-    let banner = db.ban(new_user).await?;
-
-    println!("Banned QQ : {}", banner.id);
-    Ok(Json(banner))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct BanQuery {
-    pub duration: Option<u64>,
-}
+// #[derive(Debug, Deserialize)]
+// pub struct BanQuery {
+//     pub duration: Option<u64>,
+// }
 #[derive(Serialize, Clone)]
 pub struct ManagerInfo {
     pub name: String,

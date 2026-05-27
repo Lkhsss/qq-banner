@@ -1,3 +1,6 @@
+use std::sync::atomic::Ordering;
+
+use qq_banner::METRIC_BANNED;
 use serde::{Deserialize, Serialize};
 
 use crate::AppState;
@@ -42,4 +45,28 @@ pub async fn ban(
 
     println!("Banned QQ : {}", banner.id);
     Ok(Json(banner))
+}
+
+/// TODO 
+/// 和ban一样业务分离
+pub async fn unban(
+    Path(id): Path<u64>,
+    State(state): State<AppState>,
+    _: AuthManager<AdminOrAbove>,
+) -> Result<Json<UserStatusBack>, AppErr> {
+    let mut db = state.db;
+
+    let users = User::all()
+        .filter(User::fields().id().eq(id))
+        .first()
+        .exec(&mut db)
+        .await?;
+
+    if let Some(u) = users {
+        u.delete().exec(&mut db).await?;
+        //自增减1
+        METRIC_BANNED.fetch_sub(1, Ordering::Relaxed);
+    }
+    println!("webui: id: [{}]解除封禁", id);
+    Ok(Json(UserStatusBack::unbanned(id)))
 }

@@ -37,7 +37,7 @@ pub async fn api_service(state: AppState) -> Result<(), AppErr> {
             "/api/{id}",
             post(handler::banmanagement::ban)
                 .get(handler::api::check)
-                .delete(handler::api::unban),
+                .delete(handler::banmanagement::unban),
         )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
@@ -57,8 +57,9 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
     println!("webui服务已启动！");
     println!("监听位置：{}", format_args!("{ADDR}:{WEBUI_PORT}"));
     // Vue history 路由在找不到真实文件时回退到 index.html
-    let web_assets = ServeDir::new(DIST_DIR);
+    // let web_assets = ServeDir::new(DIST_DIR);
     // .not_found_service(ServeFile::new(format!("{DIST_DIR}/index.html")));
+
 
     //manager route
     let manager_route = Router::new()
@@ -88,17 +89,13 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
                 )
                 .route("/qq/userinfo/{id}", get(handler::webui::qq_userinfo))
                 .nest("/manager", manager_route)
-                .route(
-                    "/{id}", //TODO
-                    post(handler::banmanagement::ban).delete(handler::webui::unban),
-                )
+                //ban/unban删除
                 .route_layer(middleware::from_fn_with_state(
                     state.clone(),
                     crate::middleware::record_api,
                 ))
                 .nest("/metrics", metric_route()), //放layer后面防止统计,
         )
-        .fallback_service(web_assets)
         .layer(middleware::from_fn_with_state(
             state.clone(),
             crate::middleware::record_request,

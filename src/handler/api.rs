@@ -14,83 +14,83 @@ use axum::{
     extract::{Path, State},
 };
 
-pub async fn ban(
-    Path(id): Path<u64>,
-    State(state): State<AppState>,
-    Form(form): Form<BanForm>,
-) -> Result<Json<UserStatusBack>, AppErr> {
-    //获取时间
-    let timestamp_secs = now_unix_secs();
-    let mut db = state.db;
-    //验证密码
-    let requester = match Manager::all()
-        .filter(Manager::fields().name().eq(form.name.clone()))
-        .filter(Manager::fields().password().eq(form.password.clone()))
-        .first()
-        .exec(&mut db)
-        .await?
-    {
-        Some(r) => r,
-        None => return Err(AppErr::BadPassword),
-    };
+// pub async fn ban(
+//     Path(id): Path<u64>,
+//     State(state): State<AppState>,
+//     Form(form): Form<BanForm>,
+// ) -> Result<Json<UserStatusBack>, AppErr> {
+//     //获取时间
+//     let timestamp_secs = now_unix_secs();
+//     let mut db = state.db;
+//     //验证密码
+//     let requester = match Manager::all()
+//         .filter(Manager::fields().name().eq(form.name.clone()))
+//         .filter(Manager::fields().password().eq(form.password.clone()))
+//         .first()
+//         .exec(&mut db)
+//         .await?
+//     {
+//         Some(r) => r,
+//         None => return Err(AppErr::BadPassword),
+//     };
 
-    //验证权限
-    let permisson = get_permisson(&mut db, &id.to_string()).await?;
+//     //验证权限
+//     let permisson = get_permisson(&mut db, &id.to_string()).await?;
 
-    //如果请求方权限小于被处理方权限，那么返回403
-    if requester.permission <= permisson {
-        return Err(AppErr::PermissonDenied);
-    }
+//     //如果请求方权限小于被处理方权限，那么返回403
+//     if requester.permission <= permisson {
+//         return Err(AppErr::PermissonDenied);
+//     }
 
-    let user = User {
-        id,
-        time: timestamp_secs,
-        duration: form.duration,
-        operator: requester.name,
-    };
-    // 封禁用户
-    let new_user = db.ban(user).await?;
-    Ok(Json(new_user))
-}
+//     let user = User {
+//         id,
+//         time: timestamp_secs,
+//         duration: form.duration,
+//         operator: requester.name,
+//     };
+//     // 封禁用户
+//     let new_user = db.ban(user).await?;
+//     Ok(Json(new_user))
+// }
 
-#[derive(Debug, Deserialize)]
-pub struct BanForm {
-    pub name: String,
-    pub password: String,
-    #[serde(default)]
-    pub duration: u64,
-}
+// #[derive(Debug, Deserialize)]
+// pub struct BanForm {
+//     pub name: String,
+//     pub password: String,
+//     #[serde(default)]
+//     pub duration: u64,
+// }
 
-pub async fn unban(
-    Path(id): Path<u64>,
-    State(state): State<AppState>,
-    Form(manager): Form<Manager>,
-) -> Result<Json<UserStatusBack>, AppErr> {
-    let mut db = state.db;
+// pub async fn unban(
+//     Path(id): Path<u64>,
+//     State(state): State<AppState>,
+//     Form(manager): Form<Manager>,
+// ) -> Result<Json<UserStatusBack>, AppErr> {
+//     let mut db = state.db;
 
-    let q = Manager::all()
-        .filter(Manager::fields().name().eq(manager.name))
-        .filter(Manager::fields().password().eq(manager.password))
-        .first()
-        .exec(&mut db)
-        .await?;
-    if q.is_none() {
-        return Err(AppErr::BadPassword);
-    }
-    let users = User::all()
-        .filter(User::fields().id().eq(id))
-        .first()
-        .exec(&mut db)
-        .await?;
+//     let q = Manager::all()
+//         .filter(Manager::fields().name().eq(manager.name))
+//         .filter(Manager::fields().password().eq(manager.password))
+//         .first()
+//         .exec(&mut db)
+//         .await?;
+//     if q.is_none() {
+//         return Err(AppErr::BadPassword);
+//     }
+//     let users = User::all()
+//         .filter(User::fields().id().eq(id))
+//         .first()
+//         .exec(&mut db)
+//         .await?;
 
-    if let Some(u) = users {
-        u.delete().exec(&mut db).await?;
-        //自增减1
-        METRIC_BANNED.fetch_sub(1, Ordering::Relaxed);
-    }
-    println!("id: [{}]解除封禁", id);
-    Ok(Json(UserStatusBack::unbanned(id)))
-}
+//     if let Some(u) = users {
+//         u.delete().exec(&mut db).await?;
+//         //自增减1
+//         METRIC_BANNED.fetch_sub(1, Ordering::Relaxed);
+//     }
+//     println!("id: [{}]解除封禁", id);
+//     Ok(Json(UserStatusBack::unbanned(id)))
+// }
 
 pub async fn check(
     Path(id): Path<u64>,

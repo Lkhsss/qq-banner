@@ -94,17 +94,9 @@ where
 
         // ── 回退路径：Form 用户名+密码鉴权 ──
         let form_req = axum::http::Request::from_parts(parts, body);
-        let Form(manager): Form<Manager> =
-            Form::from_request(form_req, state).await.map_err(|err| {
-                (
-                    StatusCode::UNAUTHORIZED,
-                    Json(json!({
-                        "ok": false,
-                        "reason": format!("表单解析失败: {err}"),
-                    })),
-                )
-                    .into_response()
-            })?;
+        let Form(manager): Form<Manager> = Form::from_request(form_req, state)
+            .await
+            .map_err(|err| (StatusCode::UNAUTHORIZED, err).into_response())?;
 
         match Manager::all()
             .filter(Manager::fields().name().eq(&manager.name))
@@ -116,14 +108,7 @@ where
             Ok(Some(manager)) => {
                 let permission = manager.permission_enum();
                 if !P::allows(permission) {
-                    return Err((
-                        StatusCode::FORBIDDEN,
-                        Json(json!({
-                            "ok": false,
-                            "reason": "权限不足",
-                        })),
-                    )
-                        .into_response());
+                    return Err((StatusCode::FORBIDDEN, "权限不足").into_response());
                 }
                 Ok(Self {
                     name: manager.name,
@@ -131,20 +116,10 @@ where
                     _policy: PhantomData,
                 })
             }
-            Ok(None) => Err((
-                StatusCode::UNAUTHORIZED,
-                Json(json!({
-                    "ok": false,
-                    "reason": "用户名或密码错误",
-                })),
-            )
-                .into_response()),
+            Ok(None) => Err((StatusCode::UNAUTHORIZED, "用户名或密码错误").into_response()),
             Err(err) => Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "ok": false,
-                    "reason": format!("数据库错误: {err}"),
-                })),
+                format!("数据库错误: {err}"),
             )
                 .into_response()),
         }
