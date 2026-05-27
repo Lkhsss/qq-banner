@@ -59,8 +59,9 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
     // Vue history 路由在找不到真实文件时回退到 index.html
     // let web_assets = ServeDir::new(DIST_DIR);
     // .not_found_service(ServeFile::new(format!("{DIST_DIR}/index.html")));
-
-
+    let memory_router = memory_serve::load!()
+        .index_file(Some("/index.html"))
+        .into_router();
     //manager route
     let manager_route = Router::new()
         .route("/", get(handler::webui::list_manager))
@@ -96,6 +97,7 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
                 ))
                 .nest("/metrics", metric_route()), //放layer后面防止统计,
         )
+        .merge(memory_router)
         .layer(middleware::from_fn_with_state(
             state.clone(),
             crate::middleware::record_request,
