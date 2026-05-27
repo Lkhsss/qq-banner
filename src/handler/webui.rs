@@ -26,7 +26,7 @@ use crate::{
     AppState,
     error::AppErr,
     extracter::{AdminOrAbove, AuthManager, SuperAdminOnly},
-    handler::{Claim, UserStatusBack, now_unix_secs, permission::get_permisson},
+    handler::{Claim, UserStatusBack, now_unix_secs,},
 };
 
 static KEYS: LazyLock<Keys> = LazyLock::new(|| {

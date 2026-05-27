@@ -2,6 +2,8 @@ use axum::Form;
 use qq_banner::model::{Manager, Permission};
 use toasty::Db;
 
+use crate::database::Banner;
+
 use super::*;
 
 /// 供webui用
@@ -26,24 +28,12 @@ pub async fn check_permisson(
     }
 }
 
-/// # 获取数据库中权限
-/// 如未在库中权限默认为-1
-pub async fn get_permisson(db: &mut Db, id: &str) -> Result<i16, AppErr> {
-    let user = Manager::filter(Manager::fields().name().eq(id))
-        .first()
-        .exec(db)
-        .await?;
-    match user {
-        Some(u) => Ok(u.permission),
-        None => Ok(-1),
-    }
-}
 pub async fn handle_get_permisson(
     Path(id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<String, AppErr> {
     let mut db = state.db;
-    let permission = get_permisson(&mut db, &id.to_string()).await?;
+    let permission = db.get_permisson(&id.to_string()).await?;
     Ok(permission.to_string())
 }
 
@@ -53,8 +43,8 @@ pub async fn get_password(
     Form(manager): Form<Manager>,
 ) -> Result<String, AppErr> {
     let mut db = state.db;
-    
-    let admin = Manager::filter(Manager::fields().name().eq("admin"))//FIXME
+
+    let admin = Manager::filter(Manager::fields().name().eq("admin")) //FIXME
         .filter(Manager::fields().password().eq(manager.password))
         .first()
         .exec(&mut db)
@@ -73,4 +63,3 @@ pub async fn get_password(
         None => Err(AppErr::UserNotFound),
     }
 }
-

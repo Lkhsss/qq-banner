@@ -4,7 +4,7 @@ use crate::{
     AppState,
     database::Banner,
     error::AppErr,
-    handler::{UserStatusBack, is_ban_expired, now_unix_secs, permission::get_permisson},
+    handler::{UserStatusBack, is_ban_expired, now_unix_secs},
 };
 use qq_banner::model::{Manager, Permission, User};
 use serde::Deserialize;

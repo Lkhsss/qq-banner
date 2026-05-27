@@ -7,13 +7,11 @@ use crate::AppState;
 use crate::database::Banner;
 use crate::error::AppErr;
 use crate::extracter::{AdminOrAbove, AuthManager};
-use crate::handler::permission::get_permisson;
 use crate::handler::{UserStatusBack, now_unix_secs};
 
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use qq_banner::model::User;
-
 
 #[derive(Debug, Deserialize)]
 pub struct BanQuery {
@@ -29,7 +27,7 @@ pub async fn ban(
     let timestamp_secs = now_unix_secs();
     let mut db = state.db;
     //检查操作人权限
-    let permisson = get_permisson(&mut db, &id.to_string()).await?;
+    let permisson = db.get_permisson(&id.to_string()).await?;
 
     if operator.permission <= permisson.into() {
         return Err(AppErr::PermissonDenied);
@@ -47,7 +45,7 @@ pub async fn ban(
     Ok(Json(banner))
 }
 
-/// TODO 
+/// TODO
 /// 和ban一样业务分离
 pub async fn unban(
     Path(id): Path<u64>,
