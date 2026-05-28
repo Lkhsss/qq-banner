@@ -1,11 +1,11 @@
 use crate::error::AppErr;
 use axum::{Form, Json};
+use cached::cached;
 use qq_banner::{NAPCAT_ADDR, NAPCAT_PORT, NAPCAT_TOKEN};
 
 use serde::{Deserialize, Serialize};
 
-//TODO用宏重用
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RequestBuilder {
     #[serde(rename(deserialize = "id"))]
     user_id: String,
@@ -17,16 +17,24 @@ pub struct InfoResponse {
     status: String,
     data: Info,
 }
-#[derive(Serialize, Deserialize, Debug)]
+
+#[allow(non_snake_case)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Info {
     #[serde(rename(serialize = "id"))]
-    user_id: usize,
-    nick: String,
-    phoneNum: String,
-    qqLevel: usize,
-    regTime: usize,
+    user_id: Option<usize>,
+    nick: Option<String>,
+    phoneNum: Option<String>,
+    qqLevel: Option<usize>,
 }
-
+/// 获取qq信息
+#[cached(
+    size = 50000,
+    ttl = 86400,
+    result,
+    key = "String",
+    convert = r#"{ form.user_id.clone() }"#
+)]
 pub async fn get_stranger_info(Form(form): Form<RequestBuilder>) -> Result<Json<Info>, AppErr> {
     let client = reqwest::Client::new();
     let response = client
@@ -35,9 +43,8 @@ pub async fn get_stranger_info(Form(form): Form<RequestBuilder>) -> Result<Json<
         .bearer_auth(NAPCAT_TOKEN)
         .send()
         .await?;
-    
-    let data: InfoResponse = response.json().await?;
 
+    let data: InfoResponse = response.json().await?;
 
     Ok(Json(data.data))
 }

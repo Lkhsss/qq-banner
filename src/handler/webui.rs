@@ -127,7 +127,7 @@ pub async fn is_login(
                 },
             ))
         }
-        Err(err) => return Err(AppErr::LoginErr(format!("token错误: {}", err))),
+        Err(err) => Err(AppErr::LoginErr(format!("token错误: {}", err))),
     }
 }
 

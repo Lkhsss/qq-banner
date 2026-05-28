@@ -22,9 +22,9 @@ pub async fn check_permisson(
             if name.permission < Permission::Admin.into() {
                 return Err(AppErr::PermissonDenied);
             };
-            return Ok(name.name);
+            Ok(name.name)
         }
-        None => return Err(AppErr::UserNotFound),
+        None => Err(AppErr::UserNotFound),
     }
 }
 

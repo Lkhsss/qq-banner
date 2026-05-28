@@ -125,9 +125,8 @@ pub async fn list(
     let mut active_users = Vec::with_capacity(users.len());
 
     //筛选数据
-    match filter.filter {
-        Some(f) => users.retain(|x| x.id.to_string().contains(&f)),
-        None => (),
+    if let Some(f) = filter.filter {
+        users.retain(|x| x.id.to_string().contains(&f))
     }
     for user in users {
         if is_ban_expired(&user, now) {

@@ -62,7 +62,6 @@ where
     ) -> Result<Self, Self::Rejection> {
         let app_state = AppState::from_ref(state);
         let (mut parts, body) = req.into_parts();
-
         // ── 快速路径：尝试 Cookie 鉴权 ──
         // PrivateCookieJar::from_request_parts 的 Err 类型是 Infallible，
         // 类型系统保证此处不可能失败，无需 unwrap/expect。
@@ -71,25 +70,25 @@ where
 
         let mut db = app_state.db;
 
-        if let Some(token_cookie) = jar.get("token") {
-            if let Ok(manager) = try_cookie(token_cookie.value(), &mut db).await {
-                let permission = manager.permission_enum();
-                if !P::allows(permission) {
-                    return Err((
-                        StatusCode::FORBIDDEN,
-                        Json(json!({
-                            "ok": false,
-                            "reason": "权限不足",
-                        })),
-                    )
-                        .into_response());
-                }
-                return Ok(Self {
-                    name: manager.name,
-                    permission,
-                    _policy: PhantomData,
-                });
+        if let Some(token_cookie) = jar.get("token")
+            && let Ok(manager) = try_cookie(token_cookie.value(), &mut db).await
+        {
+            let permission = manager.permission_enum();
+            if !P::allows(permission) {
+                return Err((
+                    StatusCode::FORBIDDEN,
+                    Json(json!({
+                        "ok": false,
+                        "reason": "权限不足",
+                    })),
+                )
+                    .into_response());
             }
+            return Ok(Self {
+                name: manager.name,
+                permission,
+                _policy: PhantomData,
+            });
         }
 
         // ── 回退路径：Form 用户名+密码鉴权 ──

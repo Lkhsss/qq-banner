@@ -35,6 +35,7 @@ http = "1.4.0"
 futures-util = "0.3.32"
 tokio-stream = { version = "0.1.18", features = ["time"] }
 memory-serve = "2.1.0"
+cached = { version = "1.1.0", features = ["async_tokio_rt_multi_thread"] }
 
 
 [build-dependencies]

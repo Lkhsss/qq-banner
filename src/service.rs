@@ -2,12 +2,9 @@ use axum::{
     Router, middleware,
     routing::{get, post},
 };
-use qq_banner::{globals::WEBUI_PORT, *};
+use qq_banner::globals::{ADDR, API_PORT};
 
-use tower_http::{
-    compression::CompressionLayer,
-    cors::{Any, CorsLayer},
-};
+use tower_http::{compression::CompressionLayer, cors::CorsLayer};
 
 use crate::handler;
 use crate::{AppState, error::AppErr};
@@ -33,12 +30,6 @@ pub async fn api_service(state: AppState) -> Result<Router, AppErr> {
     let cors = CorsLayer::permissive();
     let api = Router::new()
         .merge(common_route()) //一些通用接口
-        .route(
-            "/{id}",
-            get(handler::api::check)
-                .post(handler::banmanagement::ban)
-                .delete(handler::banmanagement::unban),
-        )
         .nest("/metrics", metric_route()) //放layer后面防止统计
         .route("/info", get(handler::info::get_stranger_info))
         .nest("/permission", permisson_route)
@@ -46,7 +37,14 @@ pub async fn api_service(state: AppState) -> Result<Router, AppErr> {
             "/auth",
             post(handler::webui::auth).get(handler::webui::is_login),
         )
-        .nest("/manager", manager_route);
+        .nest("/manager", manager_route)
+        .route("/list", get(handler::banmanagement::list))
+        .route(
+            "/{id}",
+            get(handler::api::check)
+                .post(handler::banmanagement::ban)
+                .delete(handler::banmanagement::unban),
+        );
 
     let memory_router = memory_serve::load!()
         .index_file(Some("/index.html"))
@@ -71,11 +69,6 @@ pub async fn api_service(state: AppState) -> Result<Router, AppErr> {
 
 fn common_route() -> Router<AppState> {
     Router::new()
-        .route("/list", get(handler::banmanagement::list))
-        .route(
-            "/list/count",
-            get(handler::banmanagement::banned_user_count_handle),
-        )
         .route("/version", get(handler::version))
         .route("/health", get(handler::health::health_check))
 }
