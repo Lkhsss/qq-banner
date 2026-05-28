@@ -15,6 +15,7 @@ toasty = { version = "0.4.0", features = ["sqlite", "serde"] }
 toasty-cli = "0.4.0"
 tokio = { version = "1.52.0", features = ["macros", "rt-multi-thread"] }
 tower-http = { version = "0.6.8", features = [
+    "compression-br",
     "compression-gzip",
     "compression-zstd",
     "cors",
@@ -33,8 +34,9 @@ sled = "0.34.7"
 http = "1.4.0"
 futures-util = "0.3.32"
 tokio-stream = { version = "0.1.18", features = ["time"] }
-memory-serve = { version = "2.1.0", features = ["force-embed"] }
+memory-serve = "2.1.0"
+cached = { version = "1.1.0", features = ["async_tokio_rt_multi_thread"] }
 
 
 [build-dependencies]
-memory-serve = { version = "2.1.0", features = ["force-embed"] }
+memory-serve = "2.1.0"

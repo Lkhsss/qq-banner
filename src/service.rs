@@ -1,46 +1,61 @@
 use axum::{
     Router, middleware,
+    Router, middleware,
     routing::{get, post},
 };
-use qq_banner::{globals::WEBUI_PORT, *};
-use reqwest::Method;
-use tower_http::{
-    compression::Compression,
-    compression::CompressionLayer,
-    cors::{Any, CorsLayer},
-    services::ServeDir,
-};
+use qq_banner::globals::{ADDR, API_PORT};
 
-use memory_serve::{self, MemoryServe};
+use tower_http::{compression::CompressionLayer, cors::CorsLayer};
 
 use crate::handler;
 use crate::{AppState, error::AppErr};
 
-pub async fn api_service(state: AppState) -> Result<(), AppErr> {
+pub async fn api_service(state: AppState) -> Result<Router, AppErr> {
     println!("api服务已启动！");
     println!("监听位置：{}", format_args!("{ADDR}:{API_PORT}"));
 
-    let permisson_route = Router::new().route(
-        "/{id}",
-        get(handler::permission::handle_get_permisson).post(handler::permission::check_permisson),
-    );
-    let manager_route = Router::new().route(
-        "/{id}",
-        post(handler::api::add_manager)
-            .delete(handler::api::del_manager)
-            .get(handler::permission::get_password),
-    );
+    //manager route
+    let manager_route = Router::new()
+        .route("/", get(handler::manager::list_manager))
+        .route(
+            "/{id}",
+            post(handler::manager::add_manager)
+                .delete(handler::manager::del_manager)
+                .get(handler::permission::get_password)
+                .patch(handler::manager::refresh_password_manager),
+        );
+
+    let permisson_route =
+        Router::new().route("/{id}", get(handler::permission::handle_get_permisson));
+
+    let cors = CorsLayer::permissive();
+    let api = Router::new()
+        .merge(common_route()) //一些通用接口
+        .nest("/metrics", metric_route()) //放layer后面防止统计
+        .route("/info", get(handler::info::get_stranger_info))
+        .nest("/permission", permisson_route)
+        .route(
+            "/auth",
+            post(handler::webui::auth).get(handler::webui::is_login),
+        )
+        .nest("/manager", manager_route)
+        .route("/list", get(handler::banmanagement::list))
+        .route(
+            "/{id}",
+            get(handler::api::check)
+                .post(handler::banmanagement::ban)
+                .delete(handler::banmanagement::unban),
+        );
+
+    let memory_router = memory_serve::load!()
+        .index_file(Some("/index.html"))
+        .into_router();
 
     let app = Router::new()
-        .nest("/api", common_route_bundle())
-        .nest("/api/permission", permisson_route)
-        .nest("/api/manager", manager_route)
-        .route(
-            "/api/{id}",
-            post(handler::api::ban)
-                .get(handler::api::check)
-                .delete(handler::api::unban),
-        )
+        .nest("/api", api)
+        .merge(memory_router)
+        .layer(cors)
+        .layer(CompressionLayer::new())
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             crate::middleware::record_api,
@@ -51,86 +66,11 @@ pub async fn api_service(state: AppState) -> Result<(), AppErr> {
         )) //记录所有请求
         .layer(compression_bundle())
         .with_state(state);
-
-    let listener = tokio::net::TcpListener::bind(format!("{}:{}", ADDR, API_PORT)).await?;
-    Ok(axum::serve(listener, app).await?)
-}
-
-pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
-    println!("webui服务已启动！");
-    println!("监听位置：{}", format_args!("{ADDR}:{WEBUI_PORT}"));
-    
-    // Vue history 路由在找不到真实文件时回退到 index.html
-    // let web_assets = ServeDir::new(DIST_DIR);
-    // .not_found_service(ServeFile::new(format!("{DIST_DIR}/index.html")));
-
-    let memory_router = memory_serve::load!()
-        // 设置默认索引文件
-        .index_file(Some(DIST_INDEX))
-        // 关键：SPA 回退，所有未匹配的路由都返回 index.html
-        .fallback(Some(DIST_INDEX))
-        // 可选：开启 clean URLs（会自动把 /about 映射到 /about.html）
-        .enable_clean_url(true)
-        // 根据你的需要调整缓存策略
-        .html_cache_control(memory_serve::CacheControl::NoCache)
-        .cache_control(memory_serve::CacheControl::Long)
-        .into_router();
-
-    //manager route
-    let manager_route = Router::new()
-        .route("/", get(handler::webui::list_manager))
-        .route(
-            "/{name}",
-            post(handler::webui::add_manager)
-                .delete(handler::webui::del_manager)
-                .patch(handler::webui::refresh_password_manager),
-        );
-    let permisson_route =
-        Router::new().route("/{id}", get(handler::permission::handle_get_permisson));
-
-    let cors = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST, Method::DELETE])
-        .allow_origin(Any);
-
-    let app = Router::new()
-        .nest(
-            "/api",
-            Router::new()
-                .merge(common_route_bundle())
-                .nest("/permission", permisson_route)
-                .route(
-                    "/auth",
-                    post(handler::webui::auth).get(handler::webui::is_login),
-                )
-                .route("/qq/userinfo/{id}", get(handler::webui::qq_userinfo))
-                .nest("/manager", manager_route)
-                .route(
-                    "/{id}",
-                    post(handler::webui::ban).delete(handler::webui::unban),
-                )
-                .route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    crate::middleware::record_api,
-                ))
-                .nest("/metrics", metric_route_bundle()), //放layer后面防止统计,
-        )
-        .merge(memory_router)
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            crate::middleware::record_request,
-        )) //记录所有请求
-        .layer(cors)
-        .layer(compression_bundle())
-        .with_state(state);
-
-    let listener = tokio::net::TcpListener::bind(format!("{}:{}", ADDR, WEBUI_PORT)).await?;
-    Ok(axum::serve(listener, app).await?)
+    Ok(app)
 }
 
 fn common_route_bundle() -> Router<AppState> {
     Router::new()
-        .route("/list", get(handler::list))
-        .route("/list/count", get(handler::banned_user_count_handle))
         .route("/version", get(handler::version))
         .route("/health", get(handler::health::health_check))
 }
@@ -140,7 +80,10 @@ fn metric_route_bundle() -> Router<AppState> {
         .route("/", get(handler::metrics::all_metrics))
         .route("/success", get(handler::metrics::success))
         .route("/fail", get(handler::metrics::fail))
-        .route("/banned", get(handler::banned_user_count_handle))
+        .route(
+            "/banned",
+            get(handler::banmanagement::banned_user_count_handle),
+        )
         .route("/request", get(handler::metrics::all_request))
         .route("/sse", get(handler::metrics::sse))
 }

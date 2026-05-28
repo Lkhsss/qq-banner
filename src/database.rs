@@ -2,7 +2,8 @@ use std::{sync::atomic::Ordering, time::Duration};
 
 use axum::{Json, response::IntoResponse};
 use qq_banner::{
-    DATABASE_FLUSH_DELAY, METRIC_BANNED, METRIC_FAIL, METRIC_REQUEST, METRIC_SUCCESS, model::User,
+    DATABASE_FLUSH_DELAY, METRIC_BANNED, METRIC_FAIL, METRIC_REQUEST, METRIC_SUCCESS,
+    model::{Manager, User},
 };
 use serde::Serialize;
 use sled::IVec;
@@ -18,6 +19,7 @@ use crate::{
 pub trait Banner {
     fn is_ban_expired(user: &User, now: u64) -> bool;
     async fn ban<U: AsRef<User>>(&mut self, new_user: U) -> Result<UserStatusBack, AppErr>;
+    async fn get_permisson(&mut self, id: &str) -> Result<i16, AppErr>;
 }
 
 impl Banner for toasty::Db {
@@ -54,6 +56,19 @@ impl Banner for toasty::Db {
                 METRIC_BANNED.fetch_add(1, Ordering::Relaxed);
                 Ok(UserStatusBack::banned(user))
             }
+        }
+    }
+
+    /// # 获取数据库中权限
+    /// 如未在库中权限默认为-1
+    async fn get_permisson(&mut self, id: &str) -> Result<i16, AppErr> {
+        let user = Manager::filter(Manager::fields().name().eq(id))
+            .first()
+            .exec(self)
+            .await?;
+        match user {
+            Some(u) => Ok(u.permission),
+            None => Ok(-1),
         }
     }
 }
