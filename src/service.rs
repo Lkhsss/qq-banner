@@ -1,50 +1,60 @@
 use axum::{
-    Router,
-    http::HeaderValue,
-    middleware,
+    Router, middleware,
     routing::{get, post},
 };
 use qq_banner::{globals::WEBUI_PORT, *};
-use reqwest::Method;
+
 use tower_http::{
+    compression::CompressionLayer,
     cors::{Any, CorsLayer},
-    services::{ServeDir, ServeFile},
 };
 
 use crate::handler;
 use crate::{AppState, error::AppErr};
 
-pub async fn api_service(state: AppState) -> Result<(), AppErr> {
+pub async fn api_service(state: AppState) -> Result<Router, AppErr> {
     println!("api服务已启动！");
     println!("监听位置：{}", format_args!("{ADDR}:{API_PORT}"));
 
-    let permisson_route = Router::new().route(
-        "/{id}",
-        get(handler::permission::handle_get_permisson).post(handler::permission::check_permisson),
-    );
-    let manager_route = Router::new().route(
-        "/{id}",
-        post(handler::api::add_manager)
-            .delete(handler::api::del_manager)
-            .get(handler::permission::get_password),
-    );
+    //manager route
+    let manager_route = Router::new()
+        .route("/", get(handler::manager::list_manager))
+        .route(
+            "/{id}",
+            post(handler::manager::add_manager)
+                .delete(handler::manager::del_manager)
+                .get(handler::permission::get_password)
+                .patch(handler::manager::refresh_password_manager),
+        );
 
-    let app = Router::new()
-        .nest(
-            "/api",
-            Router::new()
-                .merge(common_route()) //一些通用接口
-                .nest("/metrics", metric_route()) //放layer后面防止统计
-                .route("/info", get(handler::info::get_stranger_info)),
+    let permisson_route =
+        Router::new().route("/{id}", get(handler::permission::handle_get_permisson));
+
+    let cors = CorsLayer::permissive();
+    let api = Router::new()
+        .merge(common_route()) //一些通用接口
+        .nest("/metrics", metric_route()) //放layer后面防止统计
+        .route("/info", get(handler::info::get_stranger_info))
+        .nest("/permission", permisson_route)
+        .route(
+            "/auth",
+            post(handler::webui::auth).get(handler::webui::is_login),
         )
-        .nest("/api/permission", permisson_route)
-        .nest("/api/manager", manager_route)
+        .nest("/manager", manager_route);
+    let memory_router = memory_serve::load!()
+        .index_file(Some("/index.html"))
+        .into_router();
+    let app = Router::new()
+        .nest("/api", api)
         .route(
             "/api/{id}",
             post(handler::banmanagement::ban)
                 .get(handler::api::check)
                 .delete(handler::banmanagement::unban),
         )
+        .merge(memory_router)
+        .layer(cors)
+        .layer(CompressionLayer::new())
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             crate::middleware::record_api,
@@ -54,63 +64,7 @@ pub async fn api_service(state: AppState) -> Result<(), AppErr> {
             crate::middleware::record_request,
         )) //记录所有请求
         .with_state(state);
-
-    let listener = tokio::net::TcpListener::bind(format!("{}:{}", ADDR, API_PORT)).await?;
-    Ok(axum::serve(listener, app).await?)
-}
-
-pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
-    println!("webui服务已启动！");
-    println!("监听位置：{}", format_args!("http://{ADDR}:{WEBUI_PORT}"));
-
-    let memory_router = memory_serve::load!()
-        .index_file(Some("/index.html"))
-        .into_router();
-
-    //manager route
-    let manager_route = Router::new()
-        .route("/", get(handler::webui::list_manager))
-        .route(
-            "/{name}",
-            post(handler::webui::add_manager)
-                .delete(handler::webui::del_manager)
-                .patch(handler::webui::refresh_password_manager),
-        );
-
-    let permisson_route =
-        Router::new().route("/{id}", get(handler::permission::handle_get_permisson));
-
-    let cors = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST, Method::DELETE])
-        .allow_origin(Any);
-
-    let app = Router::new()
-        .nest(
-            "/api",
-            Router::new()
-                .nest("/permission", permisson_route)
-                .route(
-                    "/auth",
-                    post(handler::webui::auth).get(handler::webui::is_login),
-                )
-                // .route("/qq/userinfo/{id}", get(handler::webui::qq_userinfo))
-                .nest("/manager", manager_route)
-                //ban/unban删除
-                .route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    crate::middleware::record_api,
-                )),
-        )
-        .merge(memory_router)
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            crate::middleware::record_request,
-        )) //记录所有请求
-        .layer(cors)
-        .with_state(state);
-
-    let listener = tokio::net::TcpListener::bind(format!("{}:{}", ADDR, WEBUI_PORT)).await?;
-    Ok(axum::serve(listener, app).await?)
+    Ok(app)
 }
 
 fn common_route() -> Router<AppState> {

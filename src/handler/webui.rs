@@ -1,127 +1,41 @@
-use super::*;
 use std::sync::LazyLock;
 
-use axum::{
-    Form, Json,
-    extract::{Path, Query, State},
-    http::StatusCode,
-    response::IntoResponse,
-};
+use axum::{Form, Json, extract::State, http::StatusCode, response::IntoResponse};
 use axum_extra::extract::{
     CookieJar, PrivateCookieJar,
     cookie::{Cookie, SameSite},
 };
 
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
-use qq_banner::{
-    SALT,
-    model::{Manager, Permission, User},
-};
+use qq_banner::{SALT, model::Manager};
 
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use uuid::Uuid;
+use serde::Serialize;
 
-use crate::{
-    AppState,
-    error::AppErr,
-    extracter::{AdminOrAbove, AuthManager, SuperAdminOnly},
-    handler::{Claim, UserStatusBack, now_unix_secs,},
-};
+use crate::{AppState, error::AppErr, handler::Claim};
 
 static KEYS: LazyLock<Keys> = LazyLock::new(|| {
     // let secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     Keys::new(SALT.as_bytes())
 });
 
-pub async fn list_manager(
-    State(state): State<AppState>,
-    _: AuthManager<SuperAdminOnly>,
-) -> Result<Json<Vec<Manager>>, AppErr> {
-    let mut db = state.db;
-    let users = Manager::all().exec(&mut db).await?;
-    Ok(Json(users))
-}
+// pub async fn del_manager(
+//     Path(name): Path<String>,
+//     State(state): State<AppState>,
+//     _auth: AuthManager<SuperAdminOnly>,
+// ) -> Result<String, AppErr> {
+//     println!("删除管理账号:{}", name);
+//     if name == "admin" {
+//         return Err(AppErr::PermissonDenied);
+//     }
+//     let mut db = state.db;
 
-/// 此处有自定义提取器验证身份，api需要自己调用数据库验证
-pub async fn add_manager(
-    Path(name): Path<String>,
-    State(state): State<AppState>,
-    _auth: AuthManager<SuperAdminOnly>,
-) -> Result<Json<Manager>, AppErr> {
-    let mut db = state.db;
-    let q = Manager::filter_by_name(&name).first().exec(&mut db).await?;
+//     Manager::filter_by_name(&name)
+//         .delete()
+//         .exec(&mut db)
+//         .await?;
 
-    if q.is_some() {
-        return Err(AppErr::ManagerExists);
-    }
-    let password = Uuid::new_v4().simple().to_string();
-    let manager = toasty::create!(Manager {
-        name,
-        password,
-        permission: Permission::Admin as i16,
-    })
-    .exec(&mut db)
-    .await?;
-
-    Ok(Json(manager))
-}
-
-pub async fn refresh_password_manager(
-    Path(name): Path<String>,
-    State(state): State<AppState>,
-    _auth: AuthManager<SuperAdminOnly>,
-) -> Result<Json<Manager>, AppErr> {
-    let mut db = state.db;
-    let password = Uuid::new_v4().simple().to_string();
-
-    Manager::filter(Manager::fields().name().eq(&name))
-        .update()
-        .password(password)
-        .exec(&mut db)
-        .await?;
-    let manager = Manager::filter(Manager::fields().name().eq(&name))
-        .first()
-        .exec(&mut db)
-        .await?;
-
-    match manager {
-        Some(m) => Ok(Json(m)),
-        None => Err(AppErr::Database_Unhealth),
-    }
-}
-
-pub async fn del_manager(
-    Path(name): Path<String>,
-    State(state): State<AppState>,
-    _auth: AuthManager<SuperAdminOnly>,
-) -> Result<String, AppErr> {
-    println!("删除管理账号:{}", name);
-    if name == "admin" {
-        return Err(AppErr::PermissonDenied);
-    }
-    let mut db = state.db;
-
-    Manager::filter_by_name(&name)
-        .delete()
-        .exec(&mut db)
-        .await?;
-
-    Ok(name)
-}
-
-pub async fn qq_userinfo(Path(qq): Path<u64>) -> Result<Json<Value>, AppErr> {
-    let url = format!("https://uapis.cn/api/v1/social/qq/userinfo?qq={qq}");
-    let response = reqwest::Client::new()
-        .get(url)
-        .header("Accept", "application/json, text/plain, */*")
-        .send()
-        .await?
-        .error_for_status()?;
-
-    let payload = response.json::<Value>().await?;
-    Ok(Json(payload))
-}
+//     Ok(name)
+// }
 
 struct Keys {
     encoding: EncodingKey,
@@ -217,39 +131,6 @@ pub async fn is_login(
     }
 }
 
-/// FIXME
-
-// pub async fn ban(
-//     Path(id): Path<u64>,
-//     Query(params): Query<BanQuery>,
-//     State(state): State<AppState>,
-//     operator: AuthManager<AdminOrAbove>,
-// ) -> Result<Json<UserStatusBack>, AppErr> {
-//     let timestamp_secs = now_unix_secs();
-//     let mut db = state.db;
-//     //检查操作人权限
-//     let permisson = get_permisson(&mut db, &id.to_string()).await?;
-
-//     if operator.permission <= permisson.into() {
-//         return Err(AppErr::PermissonDenied);
-//     }
-
-//     let new_user = User {
-//         id,
-//         time: timestamp_secs,
-//         duration: params.duration.unwrap_or(0),
-//         operator: operator.name,
-//     };
-//     let banner = db.ban(new_user).await?;
-
-//     println!("Banned QQ : {}", banner.id);
-//     Ok(Json(banner))
-// }
-
-// #[derive(Debug, Deserialize)]
-// pub struct BanQuery {
-//     pub duration: Option<u64>,
-// }
 #[derive(Serialize, Clone)]
 pub struct ManagerInfo {
     pub name: String,

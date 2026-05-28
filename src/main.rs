@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use axum::extract::FromRef;
 use axum_extra::extract::cookie::Key;
 use qq_banner::{
-    DATA_DIR, DB_PATH, METRIC_BANNED,
+    ADDR, API_PORT, DATA_DIR, DB_PATH, METRIC_BANNED,
     model::{Manager, Permission},
 };
 use std::{
@@ -85,14 +85,13 @@ async fn main() -> Result<()> {
     // 启动后台数据库刷新服务，将内存中的数据写入sled
     database::start_persist_task(state.clone());
 
-    let (api_res, webui_res) = tokio::join!(
-        service::api_service(state.clone()),
-        service::webui_service(state)
-    );
-    api_res?;
-    webui_res?;
-    Ok(())
+    let app = service::api_service(state).await?;
+    let listener = tokio::net::TcpListener::bind(format!("{}:{}", ADDR, API_PORT)).await?;
+    Ok(axum::serve(listener, app).await?)
 }
+
+
+
 #[derive(Clone)]
 struct AppState {
     db: Db,

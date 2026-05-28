@@ -8,12 +8,13 @@ use std::sync::atomic::Ordering;
 use uuid::Uuid;
 
 pub mod api;
+pub mod banmanagement;
 pub mod health;
 pub mod info;
+pub mod manager;
 pub mod metrics;
 pub mod permission;
 pub mod webui;
-pub mod banmanagement;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Claim {
