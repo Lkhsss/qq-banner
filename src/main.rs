@@ -6,7 +6,7 @@ use qq_banner::{
     model::{Manager, Permission},
 };
 use std::{
-    path::{Path, PathBuf},
+    path::Path,
     sync::atomic::Ordering,
 };
 use toasty::Db;

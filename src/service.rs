@@ -1,5 +1,6 @@
 use axum::{
     Router, middleware,
+    Router, middleware,
     routing::{get, post},
 };
 use qq_banner::globals::{ADDR, API_PORT};
@@ -63,17 +64,18 @@ pub async fn api_service(state: AppState) -> Result<Router, AppErr> {
             state.clone(),
             crate::middleware::record_request,
         )) //记录所有请求
+        .layer(compression_bundle())
         .with_state(state);
     Ok(app)
 }
 
-fn common_route() -> Router<AppState> {
+fn common_route_bundle() -> Router<AppState> {
     Router::new()
         .route("/version", get(handler::version))
         .route("/health", get(handler::health::health_check))
 }
 
-fn metric_route() -> Router<AppState> {
+fn metric_route_bundle() -> Router<AppState> {
     Router::new()
         .route("/", get(handler::metrics::all_metrics))
         .route("/success", get(handler::metrics::success))
@@ -84,4 +86,8 @@ fn metric_route() -> Router<AppState> {
         )
         .route("/request", get(handler::metrics::all_request))
         .route("/sse", get(handler::metrics::sse))
+}
+
+fn compression_bundle() -> CompressionLayer {
+    CompressionLayer::new().zstd(true).gzip(true)
 }

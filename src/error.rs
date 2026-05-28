@@ -26,6 +26,8 @@ pub enum AppErr {
     Conversion(#[from] TryFromSliceError),
     #[error("权限不足")]
     PermissonDenied,
+    #[error("禁止对自己执行操作")]
+    SelfOperationProhibited,
     #[error("用户不存在")]
     UserNotFound,
     #[error("管理员已存在")]
