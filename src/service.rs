@@ -33,6 +33,12 @@ pub async fn api_service(state: AppState) -> Result<Router, AppErr> {
     let cors = CorsLayer::permissive();
     let api = Router::new()
         .merge(common_route()) //一些通用接口
+        .route(
+            "/{id}",
+            get(handler::api::check)
+                .post(handler::banmanagement::ban)
+                .delete(handler::banmanagement::unban),
+        )
         .nest("/metrics", metric_route()) //放layer后面防止统计
         .route("/info", get(handler::info::get_stranger_info))
         .nest("/permission", permisson_route)
@@ -41,17 +47,13 @@ pub async fn api_service(state: AppState) -> Result<Router, AppErr> {
             post(handler::webui::auth).get(handler::webui::is_login),
         )
         .nest("/manager", manager_route);
+
     let memory_router = memory_serve::load!()
         .index_file(Some("/index.html"))
         .into_router();
+
     let app = Router::new()
         .nest("/api", api)
-        .route(
-            "/api/{id}",
-            post(handler::banmanagement::ban)
-                .get(handler::api::check)
-                .delete(handler::banmanagement::unban),
-        )
         .merge(memory_router)
         .layer(cors)
         .layer(CompressionLayer::new())
