@@ -34,8 +34,6 @@ pub enum AppErr {
     ManagerExists,
     #[error("数据库健康度不正常")]
     Database_Unhealth,
-    #[error("不能对自己操作")]
-    SelfOperationProhibited,
 }
 
 impl IntoResponse for AppErr {

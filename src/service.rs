@@ -1,6 +1,5 @@
 use axum::{
     Router, middleware,
-    Router, middleware,
     routing::{get, post},
 };
 use qq_banner::globals::{ADDR, API_PORT};
@@ -30,8 +29,8 @@ pub async fn api_service(state: AppState) -> Result<Router, AppErr> {
 
     let cors = CorsLayer::permissive();
     let api = Router::new()
-        .merge(common_route()) //一些通用接口
-        .nest("/metrics", metric_route()) //放layer后面防止统计
+        .merge(common_route_bundle()) //一些通用接口
+        .nest("/metrics", metric_route_bundle()) //放layer后面防止统计
         .route("/info", get(handler::info::get_stranger_info))
         .nest("/permission", permisson_route)
         .route(
