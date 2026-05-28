@@ -36,7 +36,7 @@ static KEYS: LazyLock<Keys> = LazyLock::new(|| {
 
 pub async fn list_manager(
     State(state): State<AppState>,
-    _auth: AuthManager<SuperAdminOnly>,
+    _: AuthManager<SuperAdminOnly>,
 ) -> Result<Json<Vec<Manager>>, AppErr> {
     let mut db = state.db;
     let users = Manager::all().exec(&mut db).await?;

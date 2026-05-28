@@ -15,3 +15,5 @@ cargo run --bin cli -- migration apply
   - 管理管理员界面
 - bot
   - 权限指令只能私聊触发
+
+

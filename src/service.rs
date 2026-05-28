@@ -30,7 +30,13 @@ pub async fn api_service(state: AppState) -> Result<(), AppErr> {
     );
 
     let app = Router::new()
-        .nest("/api", common_route())
+        .nest(
+            "/api",
+            Router::new()
+                .merge(common_route()) //一些通用接口
+                .nest("/metrics", metric_route()) //放layer后面防止统计
+                .route("/info", get(handler::info::get_stranger_info)),
+        )
         .nest("/api/permission", permisson_route)
         .nest("/api/manager", manager_route)
         .route(
@@ -55,13 +61,12 @@ pub async fn api_service(state: AppState) -> Result<(), AppErr> {
 
 pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
     println!("webui服务已启动！");
-    println!("监听位置：{}", format_args!("{ADDR}:{WEBUI_PORT}"));
-    // Vue history 路由在找不到真实文件时回退到 index.html
-    // let web_assets = ServeDir::new(DIST_DIR);
-    // .not_found_service(ServeFile::new(format!("{DIST_DIR}/index.html")));
+    println!("监听位置：{}", format_args!("http://{ADDR}:{WEBUI_PORT}"));
+
     let memory_router = memory_serve::load!()
         .index_file(Some("/index.html"))
         .into_router();
+
     //manager route
     let manager_route = Router::new()
         .route("/", get(handler::webui::list_manager))
@@ -71,6 +76,7 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
                 .delete(handler::webui::del_manager)
                 .patch(handler::webui::refresh_password_manager),
         );
+
     let permisson_route =
         Router::new().route("/{id}", get(handler::permission::handle_get_permisson));
 
@@ -82,20 +88,18 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
         .nest(
             "/api",
             Router::new()
-                .merge(common_route())
                 .nest("/permission", permisson_route)
                 .route(
                     "/auth",
                     post(handler::webui::auth).get(handler::webui::is_login),
                 )
-                .route("/qq/userinfo/{id}", get(handler::webui::qq_userinfo))
+                // .route("/qq/userinfo/{id}", get(handler::webui::qq_userinfo))
                 .nest("/manager", manager_route)
                 //ban/unban删除
                 .route_layer(middleware::from_fn_with_state(
                     state.clone(),
                     crate::middleware::record_api,
-                ))
-                .nest("/metrics", metric_route()), //放layer后面防止统计,
+                )),
         )
         .merge(memory_router)
         .layer(middleware::from_fn_with_state(
@@ -111,8 +115,11 @@ pub async fn webui_service(state: AppState) -> Result<(), AppErr> {
 
 fn common_route() -> Router<AppState> {
     Router::new()
-        .route("/list", get(handler::list))
-        .route("/list/count", get(handler::banned_user_count_handle))
+        .route("/list", get(handler::banmanagement::list))
+        .route(
+            "/list/count",
+            get(handler::banmanagement::banned_user_count_handle),
+        )
         .route("/version", get(handler::version))
         .route("/health", get(handler::health::health_check))
 }
@@ -122,7 +129,10 @@ fn metric_route() -> Router<AppState> {
         .route("/", get(handler::metrics::all_metrics))
         .route("/success", get(handler::metrics::success))
         .route("/fail", get(handler::metrics::fail))
-        .route("/banned", get(handler::banned_user_count_handle))
+        .route(
+            "/banned",
+            get(handler::banmanagement::banned_user_count_handle),
+        )
         .route("/request", get(handler::metrics::all_request))
         .route("/sse", get(handler::metrics::sse))
 }
