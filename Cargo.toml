@@ -1,6 +1,6 @@
 [package]
 name = "qq-banner"
-version = "3.7.5"
+version = "3.8.5"
 edition = "2024"
 default-run = "qq-banner"
 
