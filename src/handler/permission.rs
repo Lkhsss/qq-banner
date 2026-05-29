@@ -1,6 +1,5 @@
 use axum::Form;
 use qq_banner::model::{Manager, Permission};
-use toasty::Db;
 
 use crate::database::Banner;
 

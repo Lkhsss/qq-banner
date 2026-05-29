@@ -63,7 +63,7 @@ pub async fn api_service(state: AppState) -> Result<Router, AppErr> {
             state.clone(),
             crate::middleware::record_request,
         )) //记录所有请求
-        .layer(compression_bundle())
+        .layer(CompressionLayer::new().no_deflate())
         .with_state(state);
     Ok(app)
 }
@@ -85,8 +85,4 @@ fn metric_route_bundle() -> Router<AppState> {
         )
         .route("/request", get(handler::metrics::all_request))
         .route("/sse", get(handler::metrics::sse))
-}
-
-fn compression_bundle() -> CompressionLayer {
-    CompressionLayer::new().zstd(true).gzip(true)
 }

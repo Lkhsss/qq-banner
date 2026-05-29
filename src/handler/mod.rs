@@ -1,11 +1,10 @@
 use crate::{AppState, error::AppErr};
-use axum::extract::{Path, Query};
-use axum::{Json, extract::State};
+use axum::extract::Path;
+use axum::extract::State;
 use qq_banner::model::User;
 use qq_banner::{METRIC_BANNED, METRIC_FAIL, METRIC_REQUEST, METRIC_SUCCESS, METRICS_DELAY};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
-use uuid::Uuid;
 
 pub mod api;
 pub mod banmanagement;

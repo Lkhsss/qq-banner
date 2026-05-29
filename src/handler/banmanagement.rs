@@ -26,6 +26,10 @@ pub async fn ban(
 ) -> Result<Json<UserStatusBack>, AppErr> {
     let timestamp_secs = now_unix_secs();
     let mut db = state.db;
+
+    if id.to_string() == operator.name {
+        return Err(AppErr::SelfOperationProhibited);
+    }
     //检查操作人权限
     let permisson = db.get_permisson(&id.to_string()).await?;
 

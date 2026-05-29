@@ -51,9 +51,8 @@ pub async fn del_manager(
     let mut db = state.db;
 
     if id == ADMIN_USER {
-        return Err(AppErr::PermissonDenied);
+        return Err(AppErr::SelfOperationProhibited);
     }
-
     // 删除
     Manager::filter_by_name(&id).delete().exec(&mut db).await?;
 

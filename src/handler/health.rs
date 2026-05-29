@@ -1,18 +1,84 @@
-use qq_banner::model::Manager;
+use std::time::Duration;
+
+use axum::Json;
+use qq_banner::{NAPCAT_ADDR, NAPCAT_PORT, NAPCAT_TOKEN, model::Manager};
 
 use super::*;
+#[derive(Default, Debug, Serialize)]
+pub struct Health {
+    database: bool,
+    napcat_online: bool,
+    napcat_good: bool,
+    health: f64,
+}
 
-pub async fn health_check(State(state): State<AppState>) -> String {
+impl Health {
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
+        }
+    }
+
+    pub fn calc(&mut self) {
+        let mut count = 0;
+        if self.database {
+            count += 1;
+        }
+        if self.napcat_online {
+            count += 1;
+        }
+        if self.napcat_good {
+            count += 1;
+        }
+        self.health = count as f64 / 3.;
+    }
+}
+#[derive(Deserialize)]
+pub struct NapcatStatusResponse {
+    data: NapcatStatus,
+}
+
+#[derive(Deserialize)]
+pub struct NapcatStatus {
+    online: bool,
+    good: bool,
+}
+/// # 检查健康度
+pub async fn health_check(State(state): State<AppState>) -> Result<Json<Health>, AppErr> {
     let mut db = state.db;
-    let mut count = 0;
+    let mut health = Health::new();
+
     let database_check = Manager::filter_by_name("admin").first().exec(&mut db).await;
 
     if let Ok(d) = database_check {
-        count += 1;
         if d.is_some() {
-            count += 1;
+            health.database = true;
         }
     }
-    let health = count as f64 / 2.0;
-    health.to_string()
+
+    let response = reqwest::Client::new()
+        .post(format!("{}:{}/get_status", NAPCAT_ADDR, NAPCAT_PORT))
+        .bearer_auth(NAPCAT_TOKEN)
+        .timeout(Duration::from_secs(1))
+        .send()
+        .await;
+    match response {
+        Ok(o) => {
+            let napcat: NapcatStatusResponse = o.json().await.unwrap_or(NapcatStatusResponse {
+                data: NapcatStatus {
+                    online: false,
+                    good: false,
+                },
+            });
+            health.napcat_online = napcat.data.online;
+            health.napcat_good = napcat.data.good;
+        }
+        Err(_) => {
+            health.napcat_online = false;
+            health.napcat_good = false;
+        }
+    }
+
+    health.calc();
+    Ok(Json(health))
 }
