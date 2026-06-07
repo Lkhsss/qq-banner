@@ -3,7 +3,7 @@ use std::{sync::atomic::Ordering, time::Duration};
 use axum::{Json, response::IntoResponse};
 use qq_banner::{
     DATABASE_FLUSH_DELAY, METRIC_BANNED, METRIC_FAIL, METRIC_REQUEST, METRIC_SUCCESS,
-    model::{Manager, User},
+    model::{Manager, Reporter, User},
 };
 use serde::Serialize;
 use sled::IVec;
@@ -13,13 +13,16 @@ use tokio::time::sleep;
 use crate::{
     AppState,
     error::AppErr,
-    handler::{UserStatusBack, is_ban_expired, now_unix_secs},
+    handler::{UserStatusBack, now_unix_secs},
 };
 
 pub trait Banner {
     fn is_ban_expired(user: &User, now: u64) -> bool;
     async fn ban<U: AsRef<User>>(&mut self, new_user: U) -> Result<UserStatusBack, AppErr>;
     async fn get_permisson(&mut self, id: &str) -> Result<i16, AppErr>;
+    async fn report(&mut self, id: u64) -> Result<u64, AppErr>;
+    async fn get_report(&mut self, id: u64) -> Result<u64, AppErr>;
+    async fn clean_report(&mut self, id: u64) -> Result<u64, AppErr>;
 }
 
 impl Banner for toasty::Db {
@@ -71,7 +74,57 @@ impl Banner for toasty::Db {
             None => Ok(-1),
         }
     }
+    /// 举报用户
+    /// report字段+1
+    async fn report(&mut self, id: u64) -> Result<u64, AppErr> {
+        let name = id.to_string();
+        let reporter = Reporter::filter_by_name(name.clone())
+            .first()
+            .exec(self)
+            .await?;
+        let count = match reporter {
+            Some(mut r) => {
+                let count = r.count.saturating_add(1);
+                r.update().count(count).exec(self).await?;
+                count
+            }
+            None => {
+                toasty::create!(Reporter { name, count: 1 })
+                    .exec(self)
+                    .await?;
+                1
+            }
+        };
+        Ok(count)
+    }
+    async fn get_report(&mut self, id: u64) -> Result<u64, AppErr> {
+        let name = id.to_string();
+        let reporter = Reporter::filter_by_name(name.clone())
+            .first()
+            .exec(self)
+            .await?;
+        let count = match reporter {
+            Some(r) => r.count,
+            None => 0,
+        };
+        Ok(count)
+    }
+
+    async fn clean_report(&mut self, id: u64) -> Result<u64, AppErr> {
+        let reporter = Reporter::filter_by_name(id.to_string())
+            .first()
+            .exec(self)
+            .await?;
+        match reporter {
+            Some(mut r) => {
+                r.update().count(0).exec(self).await?;
+            }
+            None => (),
+        };
+        Ok(0)
+    }
 }
+
 /// # 从数据库获取被封禁的人数
 pub async fn banned_user_count(db: &mut toasty::Db) -> Result<u64, AppErr> {
     let users = User::all().exec(db).await?;
@@ -79,7 +132,7 @@ pub async fn banned_user_count(db: &mut toasty::Db) -> Result<u64, AppErr> {
     let mut count = 0;
 
     for user in users {
-        if is_ban_expired(&user, now) {
+        if toasty::Db::is_ban_expired(&user, now) {
             user.delete().exec(db).await?;
         } else {
             count += 1;

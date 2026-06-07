@@ -5,10 +5,7 @@ use qq_banner::{
     ADDR, API_PORT, DATA_DIR, DB_PATH, METRIC_BANNED,
     model::{Manager, Permission},
 };
-use std::{
-    path::Path,
-    sync::atomic::Ordering,
-};
+use std::{path::Path, sync::atomic::Ordering};
 use toasty::Db;
 use toasty_cli::{Config, ToastyCli};
 use uuid::Uuid;
@@ -89,8 +86,6 @@ async fn main() -> Result<()> {
     let listener = tokio::net::TcpListener::bind(format!("{}:{}", ADDR, API_PORT)).await?;
     Ok(axum::serve(listener, app).await?)
 }
-
-
 
 #[derive(Clone)]
 struct AppState {

@@ -7,7 +7,7 @@ use crate::AppState;
 use crate::database::Banner;
 use crate::error::AppErr;
 use crate::extracter::{AdminOrAbove, AuthManager};
-use crate::handler::{UserStatusBack, is_ban_expired, now_unix_secs};
+use crate::handler::{UserStatusBack, now_unix_secs};
 
 use axum::Json;
 use axum::extract::{Path, Query, State};
@@ -30,7 +30,6 @@ pub async fn ban(
     if id.to_string() == operator.name {
         return Err(AppErr::SelfOperationProhibited);
     }
-    //检查操作人权限
     let permisson = db.get_permisson(&id.to_string()).await?;
 
     if operator.permission <= permisson.into() {
@@ -43,14 +42,13 @@ pub async fn ban(
         duration: params.duration.unwrap_or(0),
         operator: operator.name,
     };
+
     let banner = db.ban(new_user).await?;
 
     println!("Banned QQ : {}", banner.id);
     Ok(Json(banner))
 }
 
-/// TODO
-/// 和ban一样业务分离
 pub async fn unban(
     Path(id): Path<u64>,
     State(state): State<AppState>,
@@ -66,10 +64,9 @@ pub async fn unban(
 
     if let Some(u) = users {
         u.delete().exec(&mut db).await?;
-        //自增减1
         METRIC_BANNED.fetch_sub(1, Ordering::Relaxed);
     }
-    println!("webui: id: [{}]解除封禁", id);
+    println!("id: [{}] unban", id);
     Ok(Json(UserStatusBack::unbanned(id)))
 }
 
@@ -112,7 +109,6 @@ pub async fn list(
     let order = paging.order.unwrap_or(Order::Desc);
 
     let offset = (page - 1) * size;
-    // 排序
     let ord = match order {
         Order::Asc => User::fields().time().asc(),
         Order::Desc => User::fields().time().desc(),
@@ -128,12 +124,11 @@ pub async fn list(
     let now = now_unix_secs();
     let mut active_users = Vec::with_capacity(users.len());
 
-    //筛选数据
     if let Some(f) = filter.filter {
         users.retain(|x| x.id.to_string().contains(&f))
     }
     for user in users {
-        if is_ban_expired(&user, now) {
+        if toasty::Db::is_ban_expired(&user, now) {
             user.delete().exec(&mut db).await?;
         } else {
             active_users.push(user);
@@ -154,7 +149,7 @@ pub async fn banned_user_count_handle(
             let mut count = 0;
 
             for user in users {
-                if is_ban_expired(&user, now) {
+                if toasty::Db::is_ban_expired(&user, now) {
                     user.delete().exec(&mut db).await?;
                 } else {
                     if user.id.to_string().contains(&f) {
@@ -166,4 +161,29 @@ pub async fn banned_user_count_handle(
         }
         None => Ok(METRIC_BANNED.load(Ordering::Relaxed).to_string()),
     }
+}
+
+pub async fn report(
+    Path(id): Path<u64>,
+    State(state): State<AppState>,
+    _: AuthManager<AdminOrAbove>,
+) -> Result<String, AppErr> {
+    let mut db = state.db;
+    Ok(db.report(id).await?.to_string())
+}
+pub async fn get_report(
+    Path(id): Path<u64>,
+    State(state): State<AppState>,
+) -> Result<String, AppErr> {
+    let mut db = state.db;
+    Ok(db.get_report(id).await?.to_string())
+}
+
+pub async fn clean_report(
+    Path(id): Path<u64>,
+    State(state): State<AppState>,
+    _: AuthManager<AdminOrAbove>,
+) -> Result<String, AppErr> {
+    let mut db = state.db;
+    Ok(db.clean_report(id).await?.to_string())
 }

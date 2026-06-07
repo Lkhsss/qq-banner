@@ -144,6 +144,7 @@ async fn try_cookie(token: &str, db: &mut toasty::Db) -> Result<Manager, AppErr>
 }
 
 /// 从PrivateCookieJar中提取token并解析出管理员信息，返回Manager结构体
+#[deprecated]
 pub async fn valid_cookie(jar: PrivateCookieJar<Key>, state: AppState) -> Result<Manager, AppErr> {
     let token_cookie = jar.get("token").ok_or(AppErr::TokenMissing)?;
     let token = token_cookie.value();

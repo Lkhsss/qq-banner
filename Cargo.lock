@@ -1096,6 +1096,11 @@ name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash 0.2.0",
+]
 
 [[package]]
 name = "hashlink"
@@ -1473,6 +1478,47 @@ name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+
+[[package]]
+name = "jiff"
+version = "0.2.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4603d3033e49e2b0e31229fcab20a5d40089c607d975cd9c80551dc69eed9102"
+dependencies = [
+ "jiff-static",
+ "jiff-tzdb-platform",
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde_core",
+ "windows-link",
+]
+
+[[package]]
+name = "jiff-static"
+version = "0.2.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "782d32378dddf207193ac91cefb848ad41abb58195c95168e1291227a0832b47"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "jiff-tzdb"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c900ef84826f1338a557697dc8fc601df9ca9af4ac137c7fb61d4c6f2dfd3076"
+
+[[package]]
+name = "jiff-tzdb-platform"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "875a5a69ac2bab1a891711cf5eccbec1ce0341ea805560dcd90b7a2e925132e8"
+dependencies = [
+ "jiff-tzdb",
+]
 
 [[package]]
 name = "jobserver"
@@ -1896,6 +1942,21 @@ dependencies = [
  "cpufeatures 0.2.17",
  "opaque-debug",
  "universal-hash",
+]
+
+[[package]]
+name = "portable-atomic"
+version = "1.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c33a9471896f1c69cecef8d20cbe2f7accd12527ce60845ff44c153bb2a21b49"
+
+[[package]]
+name = "portable-atomic-util"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2a106d1259c23fac8e543272398ae0e3c0b8d33c88ed73d0cc71b0f1d902618"
+dependencies = [
+ "portable-atomic",
 ]
 
 [[package]]
@@ -2760,17 +2821,19 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "toasty"
-version = "0.4.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc77cbee8c7502039b47dd877c4acd8c1fedd4381e99379d0d72e6a21ed035bf"
+checksum = "17bd9e42ba3c1aa195101d150ba281f3d426439e0d2b5991b4c7c6290204348f"
 dependencies = [
  "async-trait",
  "bit-set",
  "by_address",
  "deadpool",
+ "hashbrown 0.17.1",
  "index_vec",
  "indexmap",
  "inventory",
+ "serde",
  "serde_core",
  "serde_json",
  "toasty-core",
@@ -2778,6 +2841,8 @@ dependencies = [
  "toasty-macros",
  "tokio",
  "tokio-stream",
+ "toml",
+ "toml_edit",
  "tracing",
  "url",
  "uuid",
@@ -2785,32 +2850,32 @@ dependencies = [
 
 [[package]]
 name = "toasty-cli"
-version = "0.4.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad392d900c07484b2f09de17dffdef0e1f77e236af248cbb22fd6f81316a8a82"
+checksum = "95574ff70e89989046b08939585e4978d77c3706667944c1b0246718bd121ee9"
 dependencies = [
  "anyhow",
  "clap",
  "console",
  "dialoguer",
+ "hashbrown 0.17.1",
+ "jiff",
  "rand 0.10.1",
  "serde",
  "toasty",
- "toasty-core",
- "toasty-sql",
  "toml",
- "toml_edit",
  "url",
 ]
 
 [[package]]
 name = "toasty-core"
-version = "0.4.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff7b7064c138f10f25cd50a7faca915e6071b7e19ee46f4f43c2f93f2a9d0c3f"
+checksum = "7f06ecf2a9091a814d7cfa7edc39c24a791460431f55a0ee19c1b2cb4a15b98c"
 dependencies = [
  "async-trait",
  "bit-set",
+ "hashbrown 0.17.1",
  "heck",
  "indexmap",
  "pluralizer",
@@ -2821,9 +2886,9 @@ dependencies = [
 
 [[package]]
 name = "toasty-driver-sqlite"
-version = "0.4.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c1fce87202e58d73a0b1535bddcd33ea9b8c24729beac22c25e77d72a90579b"
+checksum = "fd09e84ccfbd608949bc501c30e1c62334ddf07eb1c30976b2c470dfd19aef3e"
 dependencies = [
  "async-trait",
  "rusqlite",
@@ -2838,10 +2903,11 @@ dependencies = [
 
 [[package]]
 name = "toasty-macros"
-version = "0.4.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10845df339b1302d781970805ae76be9e63acb7f8c2ba5675125b05b7774e7c5"
+checksum = "1d27469a13c35b53f3080ca24e4585f5cd2d1ba4dd71432125aa376759439131"
 dependencies = [
+ "hashbrown 0.17.1",
  "heck",
  "pluralizer",
  "proc-macro2",
@@ -2852,10 +2918,11 @@ dependencies = [
 
 [[package]]
 name = "toasty-sql"
-version = "0.4.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d78bdf83d5654c9c0c4397daa16d1620325294af42b8e798714e4cbef45ee24"
+checksum = "2848a892303d9d63485a8f16d9c1b692b145c09940d2cdeefaf0f837e1bf6a49"
 dependencies = [
+ "serde_json",
  "toasty-core",
 ]
 

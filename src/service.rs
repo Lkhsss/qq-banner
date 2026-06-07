@@ -44,6 +44,12 @@ pub async fn api_service(state: AppState) -> Result<Router, AppErr> {
             get(handler::api::check)
                 .post(handler::banmanagement::ban)
                 .delete(handler::banmanagement::unban),
+        )
+        .route(
+            "/report/{id}",
+            get(handler::banmanagement::get_report)
+                .post(handler::banmanagement::report)
+                .delete(handler::banmanagement::clean_report),
         );
 
     let memory_router = memory_serve::load!()

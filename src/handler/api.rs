@@ -1,7 +1,8 @@
 use crate::{
     AppState,
+    database::Banner,
     error::AppErr,
-    handler::{UserStatusBack, is_ban_expired, now_unix_secs},
+    handler::{UserStatusBack, now_unix_secs},
 };
 use qq_banner::model::User;
 
@@ -24,7 +25,7 @@ pub async fn check(
 
     match users {
         Some(u) => {
-            if is_ban_expired(&u, now) {
+            if toasty::Db::is_ban_expired(&u, now) {
                 u.delete().exec(&mut db).await?;
                 Ok(Json(UserStatusBack::unbanned(id)))
             } else {

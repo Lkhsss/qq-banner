@@ -63,10 +63,6 @@ pub(crate) fn now_unix_secs() -> u64 {
         .as_secs()
 }
 
-pub(crate) fn is_ban_expired(user: &User, now: u64) -> bool {
-    user.duration != 0 && now >= user.time.saturating_add(user.duration)
-}
-
 pub async fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }

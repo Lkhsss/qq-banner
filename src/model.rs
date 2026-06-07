@@ -9,7 +9,7 @@ pub struct User {
     pub id: u64,
     pub time: u64,
     pub duration: u64,
-    pub operator:String
+    pub operator: String,
 }
 
 impl AsRef<User> for User {
@@ -17,7 +17,6 @@ impl AsRef<User> for User {
         self
     }
 }
-
 
 impl IntoResponse for User {
     fn into_response(self) -> axum::response::Response {
@@ -69,4 +68,13 @@ impl Manager {
     pub fn set_permission(&mut self, permission: Permission) {
         self.permission = permission.into();
     }
+}
+
+/// 举报表
+#[derive(Debug, toasty::Model, Serialize, Deserialize)]
+#[table = "reporter"]
+pub struct Reporter {
+    #[key]
+    pub name: String,
+    pub count: u64,
 }

@@ -47,7 +47,7 @@ impl IntoResponse for AppErr {
             AppErr::SledErr(_) => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
             AppErr::Conversion(_) => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
             AppErr::PermissonDenied => (self.to_string(), StatusCode::FORBIDDEN),
-            AppErr::UserNotFound => (self.to_string(), StatusCode::UNAUTHORIZED),
+            AppErr::UserNotFound => (self.to_string(), StatusCode::FORBIDDEN),
             AppErr::ManagerExists => (self.to_string(), StatusCode::CONFLICT),
             AppErr::Database_Unhealth => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
             AppErr::LoginErr(_) => (self.to_string(), StatusCode::UNAUTHORIZED),
