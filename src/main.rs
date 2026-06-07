@@ -11,6 +11,7 @@ use toasty_cli::{Config, ToastyCli};
 use uuid::Uuid;
 
 use crate::database::banned_user_count;
+mod cron;
 mod database;
 mod error;
 mod extracter;
@@ -69,7 +70,7 @@ async fn main() -> Result<()> {
     //kv数据库，
     let metrics_db = sled::open(format!("{}/metrics_db", DATA_DIR))?;
     // 读取数据库数据写入内存
-    database::sync_metrics(&metrics_db).await;
+    database::sync_metrics(&metrics_db, &mut db).await?;
 
     println!("管理员账号：admin");
     println!("管理员密码：{}", admin_password);
@@ -81,8 +82,10 @@ async fn main() -> Result<()> {
     };
     // 启动后台数据库刷新服务，将内存中的数据写入sled
     database::start_persist_task(state.clone());
+    // 凌晨创建新 Metrics 记录
+    cron::start_daily_metrics_job(state.db.clone()).await?;
 
-    let app = service::api_service(state).await?;
+    let app = service::api_router(state).await?;
     let listener = tokio::net::TcpListener::bind(format!("{}:{}", ADDR, API_PORT)).await?;
     Ok(axum::serve(listener, app).await?)
 }

@@ -7,17 +7,18 @@ cargo run --bin cli -- migration generate
 cargo run --bin cli -- migration apply
 ```
 
-//TODO 
-- 关键字过滤
-- 标记统计
-- webui
-  - 筛选
-  - 管理管理员界面
-- bot
-  - 权限指令只能私聊触发
-- 日志系统
+# TODO 
+- [ ] 关键字过滤
+- [x] 标记统计
+- [x] webui
+  - [x] 筛选
+  - [x] 管理管理员界面
+- [x] bot
+  - [x] 权限指令只能私聊触发
+- [ ] 日志系统
+- [ ] 配置
 
-//FIXME
-举报的接口需要数据库里有人
-但是举报不应该在ban列表里
-待解决
+
+//TODO 
+每日请求数基本框架搭建好
+下一步写前端结合

@@ -18,7 +18,7 @@ pub const PAGING_DEFAULT: usize = 20;
 // 指标的sse推送间隔
 pub const METRICS_DELAY: u64 = 3000;
 // 数据库刷新时间
-pub const DATABASE_FLUSH_DELAY: u64 = 1000;
+pub const DATABASE_FLUSH_DELAY: u64 = 2000;
 
 // pub static PROJECT_DIR: include_dir::Dir = include_dir!("./DCM-panel/dist"); //将前端硬编码到项目
 
@@ -26,3 +26,7 @@ pub static METRIC_SUCCESS: AtomicU64 = AtomicU64::new(0);
 pub static METRIC_FAIL: AtomicU64 = AtomicU64::new(0);
 pub static METRIC_REQUEST: AtomicU64 = AtomicU64::new(0);
 pub static METRIC_BANNED: AtomicU64 = AtomicU64::new(0);
+
+pub static DAY_SUCCESS: AtomicU64 = AtomicU64::new(0);
+pub static DAY_FAIL: AtomicU64 = AtomicU64::new(0);
+pub static DAY_REQUEST: AtomicU64 = AtomicU64::new(0);

@@ -2,8 +2,9 @@ use std::{sync::atomic::Ordering, time::Duration};
 
 use axum::{Json, response::IntoResponse};
 use qq_banner::{
-    DATABASE_FLUSH_DELAY, METRIC_BANNED, METRIC_FAIL, METRIC_REQUEST, METRIC_SUCCESS,
-    model::{Manager, Reporter, User},
+    DATABASE_FLUSH_DELAY, DAY_FAIL, DAY_REQUEST, DAY_SUCCESS, METRIC_BANNED, METRIC_FAIL,
+    METRIC_REQUEST, METRIC_SUCCESS,
+    model::{self, Manager, Reporter, User},
 };
 use serde::Serialize;
 use sled::IVec;
@@ -23,6 +24,10 @@ pub trait Banner {
     async fn report(&mut self, id: u64) -> Result<u64, AppErr>;
     async fn get_report(&mut self, id: u64) -> Result<u64, AppErr>;
     async fn clean_report(&mut self, id: u64) -> Result<u64, AppErr>;
+    async fn get_metric_day(&mut self) -> Result<model::Metrics, AppErr>;
+    async fn set_metric_day_request(&mut self, n: u64) -> Result<u64, AppErr>;
+    async fn set_metric_day_success(&mut self, n: u64) -> Result<u64, AppErr>;
+    async fn set_metric_day_fail(&mut self, n: u64) -> Result<u64, AppErr>;
 }
 
 impl Banner for toasty::Db {
@@ -123,6 +128,44 @@ impl Banner for toasty::Db {
         };
         Ok(0)
     }
+    /// 获取数据库中的metric数据
+    async fn get_metric_day(&mut self) -> Result<model::Metrics, AppErr> {
+        Ok(model::Metrics::all()
+            .latest_by(model::Metrics::fields().request())
+            .one()
+            .exec(self)
+            .await?)
+    }
+
+    async fn set_metric_day_request(&mut self, n: u64) -> Result<u64, AppErr> {
+        model::Metrics::all()
+            .latest_by(model::Metrics::fields().request())
+            .update()
+            .request(n)
+            .exec(self)
+            .await?;
+        Ok(n)
+    }
+
+    async fn set_metric_day_success(&mut self, n: u64) -> Result<u64, AppErr> {
+        model::Metrics::all()
+            .latest_by(model::Metrics::fields().request())
+            .update()
+            .success(n)
+            .exec(self)
+            .await?;
+        Ok(n)
+    }
+
+    async fn set_metric_day_fail(&mut self, n: u64) -> Result<u64, AppErr> {
+        model::Metrics::all()
+            .latest_by(model::Metrics::fields().request())
+            .update()
+            .fail(n)
+            .exec(self)
+            .await?;
+        Ok(n)
+    }
 }
 
 /// # 从数据库获取被封禁的人数
@@ -165,28 +208,62 @@ impl IntoResponse for Metrics {
 }
 
 /// # 同步数据库和原子自增
-pub async fn sync_metrics(db: &sled::Db) {
-    let success = get_metric("counter:success", db).await.unwrap_or(0);
-    let fail = get_metric("counter:fail", db).await.unwrap_or(0);
-    let request = get_metric("counter:request", db).await.unwrap_or(0);
+pub async fn sync_metrics(sled_db: &sled::Db, toasty_db: &mut toasty::Db) -> Result<(), AppErr> {
+    // 总计数器
+    let success = get_metric("counter:success", sled_db).await.unwrap_or(0);
+    let fail = get_metric("counter:fail", sled_db).await.unwrap_or(0);
+    let request = get_metric("counter:request", sled_db).await.unwrap_or(0);
+    // 日计数器
+
     METRIC_SUCCESS.store(success, Ordering::Relaxed);
     METRIC_FAIL.store(fail, Ordering::Relaxed);
     METRIC_REQUEST.store(request, Ordering::Relaxed);
+
+    // 日指标读取
+    let day_metric = model::Metrics::all()
+        .filter_by_time(get_metric_time())
+        .first()
+        .exec(toasty_db)
+        .await?;
+
+    match day_metric {
+        Some(d) => {
+            DAY_REQUEST.store(d.request, Ordering::Relaxed);
+            DAY_SUCCESS.store(d.success, Ordering::Relaxed);
+            DAY_FAIL.store(d.fail, Ordering::Relaxed);
+        }
+        None => {
+            // 初始化表
+            toasty::create!(model::Metrics {
+                time: get_metric_time(),
+                request: 0,
+                success: 0,
+                fail: 0,
+            })
+            .exec(toasty_db)
+            .await?;
+        }
+    }
+
+    Ok(())
 }
 
 pub fn start_persist_task(state: AppState) {
     tokio::spawn(async move {
         println!("✅ 后台计数持久化任务已启动");
         let metrics = state.metrics;
+        let mut toasty_db = state.db;
         loop {
             sleep(Duration::from_millis(DATABASE_FLUSH_DELAY)).await;
 
             // 1. 读取内存计数
+            let request = METRIC_REQUEST.load(Ordering::Relaxed);
             let success = METRIC_SUCCESS.load(Ordering::Relaxed);
             let fail = METRIC_FAIL.load(Ordering::Relaxed);
-            let request = METRIC_REQUEST.load(Ordering::Relaxed);
-            // println!("总数：{} 写入数据库", request);
-            //TODO 加入日志系统
+
+            let day_request = DAY_REQUEST.load(Ordering::Relaxed);
+            let day_success = DAY_SUCCESS.load(Ordering::Relaxed);
+            let day_fail = DAY_FAIL.load(Ordering::Relaxed);
 
             // 2. 写入 sled
             let _ = &metrics
@@ -195,6 +272,15 @@ pub fn start_persist_task(state: AppState) {
                 &metrics.update_and_fetch(b"counter:fail", |_| Some(fail.to_be_bytes().to_vec()));
             let _ = &metrics
                 .update_and_fetch(b"counter:request", |_| Some(request.to_be_bytes().to_vec()));
+
+            //写入sqlite
+            let _ = toasty_db.set_metric_day_request(day_request).await;
+            let _ = toasty_db.set_metric_day_success(day_success).await;
+            let _ = toasty_db.set_metric_day_fail(day_fail).await;
         }
     });
+}
+
+pub fn get_metric_time() -> String {
+    chrono::Local::now().format("%Y-%m-%d").to_string()
 }

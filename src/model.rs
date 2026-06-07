@@ -78,3 +78,14 @@ pub struct Reporter {
     pub name: String,
     pub count: u64,
 }
+
+/// 指标表
+#[derive(Debug, toasty::Model, Serialize, Deserialize)]
+#[table = "metrics"]
+pub struct Metrics {
+    #[key]
+    pub time: String,
+    pub request: u64,
+    pub success: u64,
+    pub fail: u64,
+}

@@ -9,7 +9,7 @@ use tower_http::{compression::CompressionLayer, cors::CorsLayer};
 use crate::handler;
 use crate::{AppState, error::AppErr};
 
-pub async fn api_service(state: AppState) -> Result<Router, AppErr> {
+pub async fn api_router(state: AppState) -> Result<Router, AppErr> {
     println!("api服务已启动！");
     println!("监听位置：{}", format_args!("{ADDR}:{API_PORT}"));
 
