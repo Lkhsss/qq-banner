@@ -2,10 +2,12 @@ use super::*;
 use crate::database::Metrics;
 use crate::error::AppErr;
 
+use axum::Json;
 use axum::response::Sse;
 use axum::response::sse::{Event, KeepAlive};
 
 use futures_util::stream::{self, Stream};
+use qq_banner::model;
 use std::{convert::Infallible, time::Duration};
 use tokio_stream::StreamExt;
 
@@ -55,4 +57,14 @@ pub async fn sse() -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>,
     .throttle(Duration::from_millis(METRICS_DELAY));
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
+}
+
+pub async fn list(State(state): State<AppState>) -> Result<Json<Vec<model::Metrics>>, AppErr> {
+    let mut db = state.db;
+    let data = model::Metrics::all()
+        .latest_by(model::Metrics::fields().time())
+        .limit(15)
+        .exec(&mut db)
+        .await?;
+    Ok(Json(data))
 }

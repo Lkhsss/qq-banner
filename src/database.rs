@@ -24,7 +24,7 @@ pub trait Banner {
     async fn report(&mut self, id: u64) -> Result<u64, AppErr>;
     async fn get_report(&mut self, id: u64) -> Result<u64, AppErr>;
     async fn clean_report(&mut self, id: u64) -> Result<u64, AppErr>;
-    async fn get_metric_day(&mut self) -> Result<model::Metrics, AppErr>;
+    async fn get_latest_metric_day(&mut self) -> Result<model::Metrics, AppErr>;
     async fn set_metric_day_request(&mut self, n: u64) -> Result<u64, AppErr>;
     async fn set_metric_day_success(&mut self, n: u64) -> Result<u64, AppErr>;
     async fn set_metric_day_fail(&mut self, n: u64) -> Result<u64, AppErr>;
@@ -129,17 +129,16 @@ impl Banner for toasty::Db {
         Ok(0)
     }
     /// 获取数据库中的metric数据
-    async fn get_metric_day(&mut self) -> Result<model::Metrics, AppErr> {
+    async fn get_latest_metric_day(&mut self) -> Result<model::Metrics, AppErr> {
         Ok(model::Metrics::all()
-            .latest_by(model::Metrics::fields().request())
+            .latest_by(model::Metrics::fields().time())
             .one()
             .exec(self)
             .await?)
     }
 
     async fn set_metric_day_request(&mut self, n: u64) -> Result<u64, AppErr> {
-        model::Metrics::all()
-            .latest_by(model::Metrics::fields().request())
+        model::Metrics::filter_by_time(get_metric_time())
             .update()
             .request(n)
             .exec(self)
@@ -148,8 +147,7 @@ impl Banner for toasty::Db {
     }
 
     async fn set_metric_day_success(&mut self, n: u64) -> Result<u64, AppErr> {
-        model::Metrics::all()
-            .latest_by(model::Metrics::fields().request())
+        model::Metrics::filter_by_time(get_metric_time())
             .update()
             .success(n)
             .exec(self)
@@ -158,8 +156,7 @@ impl Banner for toasty::Db {
     }
 
     async fn set_metric_day_fail(&mut self, n: u64) -> Result<u64, AppErr> {
-        model::Metrics::all()
-            .latest_by(model::Metrics::fields().request())
+        model::Metrics::filter_by_time(get_metric_time())
             .update()
             .fail(n)
             .exec(self)

@@ -91,4 +91,5 @@ fn metric_route_bundle() -> Router<AppState> {
         )
         .route("/request", get(handler::metrics::all_request))
         .route("/sse", get(handler::metrics::sse))
+        .route("/list", get(handler::metrics::list))
 }
