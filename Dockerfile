@@ -3,10 +3,11 @@ RUN apk add --no-cache musl-dev nodejs-current npm git
 WORKDIR /app
 COPY . .
 
+# 安装 pnpm
+RUN npm install -g pnpm
+
 # 在构建 Rust 之前先构建前端资源
 RUN git submodule update --init --recursive \
-	&& corepack enable \
-	&& corepack prepare pnpm@latest --activate \
 	&& cd DCM-panel \
 	&& pnpm install \
 	&& pnpm build
