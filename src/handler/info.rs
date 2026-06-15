@@ -1,5 +1,6 @@
 use crate::error::AppErr;
-use axum::{Form, Json};
+use crate::extracter::{AuthManager, UserOrAbove};
+use axum::{Json, extract::Query};
 use cached::cached;
 use qq_banner::{NAPCAT_ADDR, NAPCAT_PORT, NAPCAT_TOKEN};
 
@@ -35,7 +36,10 @@ pub struct Info {
     key = "String",
     convert = r#"{ form.user_id.clone() }"#
 )]
-pub async fn get_stranger_info(Form(form): Form<RequestBuilder>) -> Result<Json<Info>, AppErr> {
+pub async fn get_stranger_info(
+    Query(form): Query<RequestBuilder>,
+    _auth: AuthManager<UserOrAbove>,
+) -> Result<Json<Info>, AppErr> {
     let client = reqwest::Client::new();
     let response = client
         .post(format!("{NAPCAT_ADDR}:{NAPCAT_PORT}/get_stranger_info"))

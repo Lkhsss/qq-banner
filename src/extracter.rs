@@ -33,6 +33,17 @@ impl PermissionPolicy for AdminOrAbove {
     }
 }
 
+pub struct UserOrAbove;
+
+impl PermissionPolicy for UserOrAbove {
+    fn allows(permission: Permission) -> bool {
+        matches!(
+            permission,
+            Permission::SuperAdmin | Permission::Admin | Permission::User
+        )
+    }
+}
+
 pub struct SuperAdminOnly;
 
 impl PermissionPolicy for SuperAdminOnly {
@@ -143,27 +154,27 @@ async fn try_cookie(token: &str, db: &mut toasty::Db) -> Result<Manager, AppErr>
         .ok_or(AppErr::UserNotFound)
 }
 
-/// 从PrivateCookieJar中提取token并解析出管理员信息，返回Manager结构体
-#[deprecated]
-pub async fn valid_cookie(jar: PrivateCookieJar<Key>, state: AppState) -> Result<Manager, AppErr> {
-    let token_cookie = jar.get("token").ok_or(AppErr::TokenMissing)?;
-    let token = token_cookie.value();
+// 从PrivateCookieJar中提取token并解析出管理员信息，返回Manager结构体
+// #[deprecated]
+// pub async fn valid_cookie(jar: PrivateCookieJar<Key>, state: AppState) -> Result<Manager, AppErr> {
+//     let token_cookie = jar.get("token").ok_or(AppErr::TokenMissing)?;
+//     let token = token_cookie.value();
 
-    let claims = decode::<Claim>(
-        token,
-        &DecodingKey::from_secret(SALT.as_bytes()),
-        &Validation::default(),
-    )
-    .map_err(AppErr::TokenInvalid)?
-    .claims;
+//     let claims = decode::<Claim>(
+//         token,
+//         &DecodingKey::from_secret(SALT.as_bytes()),
+//         &Validation::default(),
+//     )
+//     .map_err(AppErr::TokenInvalid)?
+//     .claims;
 
-    let mut db = state.db;
-    let manager = Manager::all()
-        .filter(Manager::fields().name().eq(claims.name.clone()))
-        .first()
-        .exec(&mut db)
-        .await?
-        .ok_or(AppErr::UserNotFound)?;
+//     let mut db = state.db;
+//     let manager = Manager::all()
+//         .filter(Manager::fields().name().eq(claims.name.clone()))
+//         .first()
+//         .exec(&mut db)
+//         .await?
+//         .ok_or(AppErr::UserNotFound)?;
 
-    Ok(manager)
-}
+//     Ok(manager)
+// }

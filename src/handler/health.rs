@@ -50,10 +50,10 @@ pub async fn health_check(State(state): State<AppState>) -> Result<Json<Health>,
 
     let database_check = Manager::filter_by_name("admin").first().exec(&mut db).await;
 
-    if let Ok(d) = database_check {
-        if d.is_some() {
-            health.database = true;
-        }
+    if let Ok(d) = database_check
+        && d.is_some()
+    {
+        health.database = true;
     }
 
     let response = reqwest::Client::new()

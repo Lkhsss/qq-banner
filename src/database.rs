@@ -1,6 +1,5 @@
-use std::{sync::atomic::Ordering, time::Duration};
-
 use axum::{Json, response::IntoResponse};
+use log::info;
 use qq_banner::{
     DATABASE_FLUSH_DELAY, DAY_FAIL, DAY_REQUEST, DAY_SUCCESS, METRIC_BANNED, METRIC_FAIL,
     METRIC_REQUEST, METRIC_SUCCESS,
@@ -8,7 +7,7 @@ use qq_banner::{
 };
 use serde::Serialize;
 use sled::IVec;
-use toasty;
+use std::{sync::atomic::Ordering, time::Duration};
 use tokio::time::sleep;
 
 use crate::{
@@ -24,6 +23,7 @@ pub trait Banner {
     async fn report(&mut self, id: u64) -> Result<u64, AppErr>;
     async fn get_report(&mut self, id: u64) -> Result<u64, AppErr>;
     async fn clean_report(&mut self, id: u64) -> Result<u64, AppErr>;
+    #[allow(unused)]
     async fn get_latest_metric_day(&mut self) -> Result<model::Metrics, AppErr>;
     async fn set_metric_day_request(&mut self, n: u64) -> Result<u64, AppErr>;
     async fn set_metric_day_success(&mut self, n: u64) -> Result<u64, AppErr>;
@@ -120,11 +120,8 @@ impl Banner for toasty::Db {
             .first()
             .exec(self)
             .await?;
-        match reporter {
-            Some(mut r) => {
-                r.update().count(0).exec(self).await?;
-            }
-            None => (),
+        if let Some(mut r) = reporter {
+            r.update().count(0).exec(self).await?;
         };
         Ok(0)
     }
@@ -247,7 +244,7 @@ pub async fn sync_metrics(sled_db: &sled::Db, toasty_db: &mut toasty::Db) -> Res
 
 pub fn start_persist_task(state: AppState) {
     tokio::spawn(async move {
-        println!("✅ 后台计数持久化任务已启动");
+        info!("✅ 后台计数持久化任务已启动");
         let metrics = state.metrics;
         let mut toasty_db = state.db;
         loop {

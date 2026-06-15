@@ -79,7 +79,7 @@ pub async fn refresh_password_manager(
 
     match manager {
         Some(m) => Ok(Json(m)),
-        None => Err(AppErr::Database_Unhealth),
+        None => Err(AppErr::DatabaseUnhealth),
     }
 }
 

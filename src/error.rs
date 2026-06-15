@@ -1,12 +1,12 @@
-use std::array::TryFromSliceError;
-
 use axum::{http::StatusCode, response::IntoResponse};
+use log::error;
+use std::array::TryFromSliceError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppErr {
     #[error("数据库出现错误: {0}")]
     Database(#[from] toasty::Error),
-    #[error("密钥错误")]
+    #[error("密钥错误，鉴权失败")]
     BadPassword,
     #[error("io错误：{0}")]
     Io(#[from] std::io::Error),
@@ -17,6 +17,7 @@ pub enum AppErr {
     #[error("token校验失败: {0}")]
     TokenInvalid(jsonwebtoken::errors::Error),
     #[error("Cookie缺失")]
+    #[allow(unused)]
     TokenMissing,
     #[error("登陆失败: {0}")]
     LoginErr(String),
@@ -33,11 +34,12 @@ pub enum AppErr {
     #[error("管理员已存在")]
     ManagerExists,
     #[error("数据库健康度不正常")]
-    Database_Unhealth,
+    DatabaseUnhealth,
 }
 
 impl IntoResponse for AppErr {
     fn into_response(self) -> axum::response::Response {
+        error!("{}", self);
         let (msg, statuscode) = match self {
             AppErr::Database(_) => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
             AppErr::BadPassword => (self.to_string(), StatusCode::UNAUTHORIZED),
@@ -49,7 +51,7 @@ impl IntoResponse for AppErr {
             AppErr::PermissonDenied => (self.to_string(), StatusCode::FORBIDDEN),
             AppErr::UserNotFound => (self.to_string(), StatusCode::FORBIDDEN),
             AppErr::ManagerExists => (self.to_string(), StatusCode::CONFLICT),
-            AppErr::Database_Unhealth => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
+            AppErr::DatabaseUnhealth => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
             AppErr::LoginErr(_) => (self.to_string(), StatusCode::UNAUTHORIZED),
             AppErr::SelfOperationProhibited => (self.to_string(), StatusCode::FORBIDDEN),
             AppErr::TokenMissing => (self.to_string(), StatusCode::UNAUTHORIZED),

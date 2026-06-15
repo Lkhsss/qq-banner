@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use axum::extract::FromRef;
 use axum_extra::extract::cookie::Key;
+use log::info;
 use qq_banner::{
     ADDR, API_PORT, DATA_DIR, DB_PATH, METRIC_BANNED,
     model::{Manager, Permission},
@@ -16,11 +17,14 @@ mod database;
 mod error;
 mod extracter;
 mod handler;
+mod logger;
 mod middleware;
 mod service;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    logger::init(); // 初始化
+
     std::fs::create_dir_all(Path::new(DATA_DIR))?;
     let db_url = format!("sqlite:{}/{}", DATA_DIR, DB_PATH);
 
@@ -43,6 +47,7 @@ async fn main() -> Result<()> {
         .models(toasty::models!(qq_banner::*))
         .connect(&db_url)
         .await?;
+
     // 读取数据库数据写入内存
     let banned = banned_user_count(&mut db).await?;
     METRIC_BANNED.store(banned, Ordering::Relaxed);
@@ -72,8 +77,8 @@ async fn main() -> Result<()> {
     // 读取数据库数据写入内存
     database::sync_metrics(&metrics_db, &mut db).await?;
 
-    println!("管理员账号：admin");
-    println!("管理员密码：{}", admin_password);
+    info!("管理员账号：admin");
+    info!("管理员密码：{}", admin_password);
 
     let state = AppState {
         db,
@@ -85,6 +90,7 @@ async fn main() -> Result<()> {
     // 凌晨创建新 Metrics 记录
     cron::start_daily_metrics_job(state.db.clone()).await?;
 
+    info!("监听位置：{}", format_args!("{ADDR}:{API_PORT}"));
     let app = service::api_router(state).await?;
     let listener = tokio::net::TcpListener::bind(format!("{}:{}", ADDR, API_PORT)).await?;
     Ok(axum::serve(listener, app).await?)

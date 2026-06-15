@@ -5,8 +5,8 @@ use axum_extra::extract::{
     CookieJar, PrivateCookieJar,
     cookie::{Cookie, SameSite},
 };
-
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use log::debug;
 use qq_banner::{SALT, model::Manager};
 
 use serde::Serialize;
@@ -58,7 +58,7 @@ pub async fn auth(
     jar: CookieJar,
     Form(manager): Form<Manager>,
 ) -> Result<(PrivateCookieJar, CookieJar, ManagerInfo), AppErr> {
-    println!("用户：{} 鉴权", manager.name);
+    debug!("用户：{} 鉴权", manager.name);
     let mut db = state.db;
 
     let manager_valid = Manager::all()

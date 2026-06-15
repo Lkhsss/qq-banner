@@ -1,31 +1,31 @@
 use axum::Form;
-use qq_banner::model::{Manager, Permission};
+use qq_banner::model::Manager;
 
 use crate::database::Banner;
 
 use super::*;
 
-/// 供webui用
-pub async fn check_permisson(
-    Path(id): Path<u64>,
-    State(state): State<AppState>,
-) -> Result<String, AppErr> {
-    let mut db = state.db;
+// 供webui用
+// pub async fn check_permisson(
+//     Path(id): Path<u64>,
+//     State(state): State<AppState>,
+// ) -> Result<String, AppErr> {
+//     let mut db = state.db;
 
-    let admin = Manager::filter(Manager::fields().name().eq(id.to_string()))
-        .first()
-        .exec(&mut db)
-        .await?;
-    match admin {
-        Some(name) => {
-            if name.permission < Permission::Admin.into() {
-                return Err(AppErr::PermissonDenied);
-            };
-            Ok(name.name)
-        }
-        None => Err(AppErr::UserNotFound),
-    }
-}
+//     let admin = Manager::filter(Manager::fields().name().eq(id.to_string()))
+//         .first()
+//         .exec(&mut db)
+//         .await?;
+//     match admin {
+//         Some(name) => {
+//             if name.permission < Permission::Admin.into() {
+//                 return Err(AppErr::PermissonDenied);
+//             };
+//             Ok(name.name)
+//         }
+//         None => Err(AppErr::UserNotFound),
+//     }
+// }
 
 pub async fn handle_get_permisson(
     Path(id): Path<String>,

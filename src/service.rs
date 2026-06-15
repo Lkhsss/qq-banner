@@ -2,17 +2,13 @@ use axum::{
     Router, middleware,
     routing::{get, post},
 };
-use qq_banner::globals::{ADDR, API_PORT};
 
-use tower_http::{compression::CompressionLayer, cors::CorsLayer};
+use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
 
 use crate::handler;
 use crate::{AppState, error::AppErr};
 
 pub async fn api_router(state: AppState) -> Result<Router, AppErr> {
-    println!("api服务已启动！");
-    println!("监听位置：{}", format_args!("{ADDR}:{API_PORT}"));
-
     //manager route
     let manager_route = Router::new()
         .route("/", get(handler::manager::list_manager))
@@ -69,6 +65,7 @@ pub async fn api_router(state: AppState) -> Result<Router, AppErr> {
             state.clone(),
             crate::middleware::record_request,
         )) //记录所有请求
+        .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new().no_deflate())
         .with_state(state);
     Ok(app)
