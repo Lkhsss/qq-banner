@@ -23,7 +23,7 @@ pub async fn api_router(state: AppState) -> Result<Router, AppErr> {
     let permisson_route =
         Router::new().route("/{id}", get(handler::permission::handle_get_permisson));
 
-    let cors = CorsLayer::permissive();
+    let cors = CorsLayer::default();
     let api = Router::new()
         .merge(common_route_bundle()) //一些通用接口
         .nest("/metrics", metric_route_bundle()) //放layer后面防止统计

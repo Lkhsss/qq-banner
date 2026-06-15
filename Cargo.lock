@@ -2108,7 +2108,7 @@ dependencies = [
 
 [[package]]
 name = "qq-banner"
-version = "3.9.6"
+version = "3.9.7"
 dependencies = [
  "anyhow",
  "axum",
