@@ -65,6 +65,14 @@ pub async fn api_router(state: AppState) -> Result<Router, AppErr> {
             state.clone(),
             crate::middleware::record_request,
         )) //记录所有请求
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::hsts_redirect,
+        )) //HSTS 头
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::security_headers,
+        )) //安全头
         .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new().no_deflate())
         .with_state(state);

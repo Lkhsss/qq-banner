@@ -1,22 +1,21 @@
 use axum::{
-    Form, Json,
-    extract::{FromRef, FromRequest, FromRequestParts},
-    http::StatusCode,
-    response::{IntoResponse, Response},
+    Form,
+    extract::{FromRef, FromRequest, FromRequestParts, OriginalUri},
 };
 use axum_extra::extract::{PrivateCookieJar, cookie::Key};
 use jsonwebtoken::{DecodingKey, Validation, decode};
 use qq_banner::SALT;
 use qq_banner::model::{Manager, Permission};
-use serde_json::json;
 use std::marker::PhantomData;
 
 use crate::{AppState, error::AppErr, handler::Claim};
+use tracing::error;
 
 pub trait PermissionPolicy {
     fn allows(permission: Permission) -> bool;
 }
 
+#[derive(Debug)]
 pub struct AnyPermission;
 
 impl PermissionPolicy for AnyPermission {
@@ -25,6 +24,7 @@ impl PermissionPolicy for AnyPermission {
     }
 }
 
+#[derive(Debug)]
 pub struct AdminOrAbove;
 
 impl PermissionPolicy for AdminOrAbove {
@@ -33,6 +33,7 @@ impl PermissionPolicy for AdminOrAbove {
     }
 }
 
+#[derive(Debug)]
 pub struct UserOrAbove;
 
 impl PermissionPolicy for UserOrAbove {
@@ -44,6 +45,7 @@ impl PermissionPolicy for UserOrAbove {
     }
 }
 
+#[derive(Debug)]
 pub struct SuperAdminOnly;
 
 impl PermissionPolicy for SuperAdminOnly {
@@ -52,6 +54,7 @@ impl PermissionPolicy for SuperAdminOnly {
     }
 }
 
+#[derive(Debug)]
 pub struct AuthManager<P = AnyPermission> {
     pub name: String,
     pub permission: Permission,
@@ -65,7 +68,7 @@ where
     Key: FromRef<S>,
     P: PermissionPolicy,
 {
-    type Rejection = Response;
+    type Rejection = AppErr;
 
     async fn from_request(
         req: axum::http::Request<axum::body::Body>,
@@ -73,6 +76,10 @@ where
     ) -> Result<Self, Self::Rejection> {
         let app_state = AppState::from_ref(state);
         let (mut parts, body) = req.into_parts();
+        let uri = OriginalUri::from_request_parts(&mut parts, state)
+            .await
+            .map(|u| u.0.to_string())
+            .unwrap_or_else(|_| parts.uri.to_string());
         // ── 快速路径：尝试 Cookie 鉴权 ──
         // PrivateCookieJar::from_request_parts 的 Err 类型是 Infallible，
         // 类型系统保证此处不可能失败，无需 unwrap/expect。
@@ -86,14 +93,13 @@ where
         {
             let permission = manager.permission_enum();
             if !P::allows(permission) {
-                return Err((
-                    StatusCode::FORBIDDEN,
-                    Json(json!({
-                        "ok": false,
-                        "reason": "权限不足",
-                    })),
-                )
-                    .into_response());
+                error!(
+                    uri = %uri,
+                    user = %manager.name,
+                    reason = "权限不足",
+                    method = "cookie",
+                );
+                return Err(AppErr::PermissonDenied);
             }
             return Ok(Self {
                 name: manager.name,
@@ -106,7 +112,7 @@ where
         let form_req = axum::http::Request::from_parts(parts, body);
         let Form(manager): Form<Manager> = Form::from_request(form_req, state)
             .await
-            .map_err(|err| (StatusCode::UNAUTHORIZED, err).into_response())?;
+            .map_err(|err| AppErr::LoginErr(err.to_string()))?;
 
         match Manager::all()
             .filter(Manager::fields().name().eq(&manager.name))
@@ -118,7 +124,13 @@ where
             Ok(Some(manager)) => {
                 let permission = manager.permission_enum();
                 if !P::allows(permission) {
-                    return Err((StatusCode::FORBIDDEN, "权限不足").into_response());
+                    error!(
+                        uri = %uri,
+                        user = %manager.name,
+                        reason = "权限不足",
+                        method = "form",
+                    );
+                    return Err(AppErr::PermissonDenied);
                 }
                 Ok(Self {
                     name: manager.name,
@@ -126,12 +138,16 @@ where
                     _policy: PhantomData,
                 })
             }
-            Ok(None) => Err((StatusCode::UNAUTHORIZED, "用户名或密码错误").into_response()),
-            Err(err) => Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("数据库错误: {err}"),
-            )
-                .into_response()),
+            Ok(None) => {
+                error!(
+                    uri = %uri,
+                    user = %manager.name,
+                    reason = "用户名或密码错误",
+                    method = "form",
+                );
+                Err(AppErr::BadPassword)
+            }
+            Err(err) => Err(AppErr::Database(err)),
         }
     }
 }

@@ -2,6 +2,7 @@ use axum::Form;
 use qq_banner::model::Manager;
 
 use crate::database::Banner;
+use tracing::{info, instrument};
 
 use super::*;
 
@@ -27,15 +28,18 @@ use super::*;
 //     }
 // }
 
+#[instrument(name = "获取权限", skip(state))]
 pub async fn handle_get_permisson(
     Path(id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<String, AppErr> {
     let mut db = state.db;
     let permission = db.get_permisson(&id.to_string()).await?;
+    info!("查询用户 {id} 权限: {permission}");
     Ok(permission.to_string())
 }
 
+#[instrument(name = "获取密码", skip(state))]
 pub async fn get_password(
     Path(id): Path<u64>,
     State(state): State<AppState>,

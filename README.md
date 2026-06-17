@@ -18,7 +18,3 @@ cargo run --bin cli -- migration apply
 - [ ] 日志系统
 - [ ] 配置
 
-
-//TODO 
-每日请求数基本框架搭建好
-下一步写前端结合

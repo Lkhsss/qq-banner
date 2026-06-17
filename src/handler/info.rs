@@ -5,6 +5,7 @@ use cached::cached;
 use qq_banner::{NAPCAT_ADDR, NAPCAT_PORT, NAPCAT_TOKEN};
 
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RequestBuilder {
@@ -29,6 +30,7 @@ pub struct Info {
     qqLevel: Option<usize>,
 }
 /// 获取qq信息
+#[instrument(name = "获取QQ信息", skip(_auth))]
 #[cached(
     size = 50000,
     ttl = 86400,

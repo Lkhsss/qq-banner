@@ -1,6 +1,6 @@
 use axum::{http::StatusCode, response::IntoResponse};
-use log::error;
 use std::array::TryFromSliceError;
+use tracing::warn;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppErr {
@@ -39,8 +39,7 @@ pub enum AppErr {
 
 impl IntoResponse for AppErr {
     fn into_response(self) -> axum::response::Response {
-        error!("{}", self);
-        let (msg, statuscode) = match self {
+        let (msg, statuscode) = match &self {
             AppErr::Database(_) => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
             AppErr::BadPassword => (self.to_string(), StatusCode::UNAUTHORIZED),
             AppErr::Io(_) => (self.to_string(), StatusCode::INTERNAL_SERVER_ERROR),
@@ -57,7 +56,17 @@ impl IntoResponse for AppErr {
             AppErr::TokenMissing => (self.to_string(), StatusCode::UNAUTHORIZED),
             AppErr::TokenInvalid(_) => (self.to_string(), StatusCode::UNAUTHORIZED),
         };
-
+        // 鉴权类错误已在 extracter 中打日志，此处跳过避免重复
+        if !matches!(
+            &self,
+            AppErr::PermissonDenied
+                | AppErr::BadPassword
+                | AppErr::TokenInvalid(_)
+                | AppErr::TokenMissing
+                | AppErr::LoginErr(_)
+        ) {
+            warn!("[{}]{}", statuscode.as_u16(), msg);
+        }
         (statuscode, msg).into_response()
     }
 }

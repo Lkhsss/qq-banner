@@ -6,6 +6,7 @@ use qq_banner::{
     ADMIN_USER,
     model::{Manager, Permission},
 };
+use tracing::{info, instrument};
 use uuid::Uuid;
 
 use crate::{
@@ -15,10 +16,11 @@ use crate::{
 };
 
 /// # 增加管理员
+#[instrument(name = "添加管理员", skip(state))]
 pub async fn add_manager(
     Path(id): Path<String>,
     State(state): State<AppState>,
-    _: AuthManager<SuperAdminOnly>,
+    operator: AuthManager<SuperAdminOnly>,
 ) -> Result<Json<Manager>, AppErr> {
     let mut db = state.db;
 
@@ -39,14 +41,19 @@ pub async fn add_manager(
     .exec(&mut db)
     .await?;
 
+    info!(
+        "超级管理员[{}]添加了管理员[{}]",
+        operator.name, manager.name
+    );
     Ok(Json(manager))
 }
 
 /// # 减少管理员
+#[instrument(name = "删除管理员", skip(state))]
 pub async fn del_manager(
     Path(id): Path<String>,
     State(state): State<AppState>,
-    _: AuthManager<SuperAdminOnly>,
+    operator: AuthManager<SuperAdminOnly>,
 ) -> Result<String, AppErr> {
     let mut db = state.db;
 
@@ -56,13 +63,15 @@ pub async fn del_manager(
     // 删除
     Manager::filter_by_name(&id).delete().exec(&mut db).await?;
 
+    info!("超级管理员[{}]删除了管理员[{}]", operator.name, id);
     Ok(id)
 }
 
+#[instrument(name = "刷新管理员密码", skip(state))]
 pub async fn refresh_password_manager(
     Path(id): Path<String>,
     State(state): State<AppState>,
-    _auth: AuthManager<SuperAdminOnly>,
+    operator: AuthManager<SuperAdminOnly>,
 ) -> Result<Json<Manager>, AppErr> {
     let mut db = state.db;
     let password = Uuid::new_v4().simple().to_string();
@@ -78,11 +87,15 @@ pub async fn refresh_password_manager(
         .await?;
 
     match manager {
-        Some(m) => Ok(Json(m)),
+        Some(m) => {
+            info!("超级管理员[{}]刷新了管理员[{}]的密码", operator.name, id);
+            Ok(Json(m))
+        }
         None => Err(AppErr::DatabaseUnhealth),
     }
 }
 
+#[instrument(name = "管理员列表", skip(state))]
 pub async fn list_manager(
     State(state): State<AppState>,
     _: AuthManager<SuperAdminOnly>,

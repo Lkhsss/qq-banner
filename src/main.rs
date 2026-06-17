@@ -96,7 +96,7 @@ async fn main() -> Result<()> {
     Ok(axum::serve(listener, app).await?)
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct AppState {
     db: Db,
     metrics: sled::Db,

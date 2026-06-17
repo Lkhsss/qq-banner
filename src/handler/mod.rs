@@ -5,6 +5,7 @@ use qq_banner::model::User;
 use qq_banner::{METRIC_BANNED, METRIC_FAIL, METRIC_REQUEST, METRIC_SUCCESS, METRICS_DELAY};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
+use tracing::instrument;
 
 pub mod api;
 pub mod banmanagement;
@@ -63,6 +64,7 @@ pub(crate) fn now_unix_secs() -> u64 {
         .as_secs()
 }
 
+#[instrument(name = "版本号")]
 pub async fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }

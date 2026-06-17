@@ -11,13 +11,17 @@ use crate::handler::{UserStatusBack, now_unix_secs};
 
 use axum::Json;
 use axum::extract::{Path, Query, State};
-use qq_banner::model::User;
+use qq_banner::model::{Permission, User};
+
+use tracing::{info, instrument};
 
 #[derive(Debug, Deserialize)]
 pub struct BanQuery {
     pub duration: Option<u64>,
+    pub operator: Option<String>,
 }
 
+#[instrument(name = "封禁", skip(state, operator, params))]
 pub async fn ban(
     Path(id): Path<u64>,
     Query(params): Query<BanQuery>,
@@ -30,29 +34,58 @@ pub async fn ban(
     if id.to_string() == operator.name {
         return Err(AppErr::SelfOperationProhibited);
     }
+
+    // 增加operater的指定
     let permisson = db.get_permisson(&id.to_string()).await?;
 
     if operator.permission <= permisson.into() {
         return Err(AppErr::PermissonDenied);
     }
 
+    let duration = match params.duration {
+        Some(d) => d.to_string(),
+        None => String::from("永久"),
+    };
+    // 如果是超级管理员权限，允许指定操作人
+    let operator_select = if operator.permission == Permission::SuperAdmin {
+        match params.operator {
+            Some(p) => {
+                info!(
+                    "超级管理员[{}]封禁[{}](指定操作人[{}]) 时长:{}",
+                    &operator.name, id, &p, duration
+                );
+                p
+            }
+            None => {
+                info!(
+                    "超级管理员[{}]封禁[{}] 时长:{}",
+                    &operator.name, id, duration
+                );
+                operator.name
+            }
+        }
+    } else {
+        info!("[{}]封禁[{}] 时长:{}", &operator.name, id, duration);
+        operator.name
+    };
+
     let new_user = User {
         id,
         time: timestamp_secs,
         duration: params.duration.unwrap_or(0),
-        operator: operator.name,
+        operator: operator_select,
     };
 
     let banner = db.ban(new_user).await?;
 
-    println!("Banned QQ : {}", banner.id);
     Ok(Json(banner))
 }
 
+#[instrument(name = "取消封禁", skip(state))]
 pub async fn unban(
     Path(id): Path<u64>,
     State(state): State<AppState>,
-    _: AuthManager<AdminOrAbove>,
+    operator: AuthManager<AdminOrAbove>,
 ) -> Result<Json<UserStatusBack>, AppErr> {
     let mut db = state.db;
 
@@ -65,8 +98,13 @@ pub async fn unban(
     if let Some(u) = users {
         u.delete().exec(&mut db).await?;
         METRIC_BANNED.fetch_sub(1, Ordering::Relaxed);
+        info!("管理员[{}]解封了用户 {id}", operator.name);
+    } else {
+        info!(
+            "管理员[{}]尝试解封用户 {id}，但该用户未被封禁",
+            operator.name
+        );
     }
-    println!("id: [{}] unban", id);
     Ok(Json(UserStatusBack::unbanned(id)))
 }
 
@@ -98,6 +136,7 @@ pub struct Filter {
     pub filter: Option<String>,
 }
 
+#[instrument(name = "封禁列表", skip(state))]
 pub async fn list(
     State(state): State<AppState>,
     Query(paging): Query<Paging>,
@@ -137,6 +176,7 @@ pub async fn list(
     Ok(Json(active_users))
 }
 
+#[instrument(name = "封禁统计", skip(state))]
 pub async fn banned_user_count_handle(
     State(state): State<AppState>,
     Query(filiter): Query<Filter>,
@@ -163,14 +203,18 @@ pub async fn banned_user_count_handle(
     }
 }
 
+#[instrument(name = "举报", skip(state))]
 pub async fn report(
     Path(id): Path<u64>,
     State(state): State<AppState>,
-    _: AuthManager<AdminOrAbove>,
+    operator: AuthManager<AdminOrAbove>,
 ) -> Result<String, AppErr> {
     let mut db = state.db;
-    Ok(db.report(id).await?.to_string())
+    let count = db.report(id).await?;
+    info!("管理员[{}]举报了用户 {id}，累计 {count} 次", operator.name);
+    Ok(count.to_string())
 }
+#[instrument(name = "查看举报", skip(state))]
 pub async fn get_report(
     Path(id): Path<u64>,
     State(state): State<AppState>,
@@ -179,11 +223,17 @@ pub async fn get_report(
     Ok(db.get_report(id).await?.to_string())
 }
 
+#[instrument(name = "清空举报", skip(state))]
 pub async fn clean_report(
     Path(id): Path<u64>,
     State(state): State<AppState>,
-    _: AuthManager<AdminOrAbove>,
+    operator: AuthManager<AdminOrAbove>,
 ) -> Result<String, AppErr> {
     let mut db = state.db;
-    Ok(db.clean_report(id).await?.to_string())
+    let count = db.clean_report(id).await?;
+    info!(
+        "管理员[{}]清空了用户 {id} 的举报记录，之前共 {count} 次",
+        operator.name
+    );
+    Ok(count.to_string())
 }

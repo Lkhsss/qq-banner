@@ -10,8 +10,10 @@ use axum::{
     Json,
     extract::{Path, State},
 };
+use tracing::{info, instrument};
 
 /// # 检查用户是否被封禁
+#[instrument(skip(state), name = "检查封禁状态")]
 pub async fn check(
     Path(id): Path<u64>,
     State(state): State<AppState>,
@@ -27,11 +29,17 @@ pub async fn check(
         Some(u) => {
             if toasty::Db::is_ban_expired(&u, now) {
                 u.delete().exec(&mut db).await?;
+                info!("用户 {id} 封禁已过期，已解封");
                 Ok(Json(UserStatusBack::unbanned(id)))
             } else {
+                info!("用户 {id} 仍在封禁中");
                 Ok(Json(UserStatusBack::banned(u)))
             }
         }
-        None => Ok(Json(UserStatusBack::unbanned(id))),
+
+        None => {
+            info!("用户 {id} 未被封禁");
+            Ok(Json(UserStatusBack::unbanned(id)))
+        }
     }
 }

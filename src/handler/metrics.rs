@@ -10,19 +10,24 @@ use futures_util::stream::{self, Stream};
 use qq_banner::model;
 use std::{convert::Infallible, time::Duration};
 use tokio_stream::StreamExt;
+use tracing::instrument;
 
+#[instrument(name = "指标-成功数")]
 pub async fn success() -> Result<String, AppErr> {
     Ok(METRIC_SUCCESS.load(Ordering::Relaxed).to_string())
 }
 
+#[instrument(name = "指标-失败数")]
 pub async fn fail() -> Result<String, AppErr> {
     Ok(METRIC_FAIL.load(Ordering::Relaxed).to_string())
 }
 
+#[instrument(name = "指标-请求数")]
 pub async fn all_request() -> Result<String, AppErr> {
     Ok(METRIC_REQUEST.load(Ordering::Relaxed).to_string())
 }
 
+#[instrument(name = "指标-全部")]
 pub async fn all_metrics() -> Result<Metrics, AppErr> {
     let success = METRIC_SUCCESS.load(Ordering::Relaxed);
     let fail = METRIC_FAIL.load(Ordering::Relaxed);
@@ -37,6 +42,7 @@ pub async fn all_metrics() -> Result<Metrics, AppErr> {
     })
 }
 
+#[instrument(name = "指标-SSE")]
 pub async fn sse() -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AppErr> {
     let stream = stream::repeat_with(|| {
         let success = METRIC_SUCCESS.load(Ordering::Relaxed);
@@ -59,6 +65,7 @@ pub async fn sse() -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>,
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
 
+#[instrument(name = "指标-历史", skip(state))]
 pub async fn list(State(state): State<AppState>) -> Result<Json<Vec<model::Metrics>>, AppErr> {
     let mut db = state.db;
     let data = model::Metrics::all()

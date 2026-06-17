@@ -3,6 +3,9 @@ use std::time::Duration;
 use axum::Json;
 use qq_banner::{NAPCAT_ADDR, NAPCAT_PORT, NAPCAT_TOKEN, model::Manager};
 
+use tracing::info;
+use tracing::instrument;
+
 use super::*;
 #[derive(Default, Debug, Serialize)]
 pub struct Health {
@@ -44,6 +47,7 @@ pub struct NapcatStatus {
     good: bool,
 }
 /// # 检查健康度
+#[instrument(name = "健康检查", skip(state))]
 pub async fn health_check(State(state): State<AppState>) -> Result<Json<Health>, AppErr> {
     let mut db = state.db;
     let mut health = Health::new();
@@ -80,5 +84,12 @@ pub async fn health_check(State(state): State<AppState>) -> Result<Json<Health>,
     }
 
     health.calc();
+    info!(
+        "健康度: {:.0}% (DB:{}, NC:{}, NG:{})",
+        health.health * 100.0,
+        health.database as u8,
+        health.napcat_online as u8,
+        health.napcat_good as u8
+    );
     Ok(Json(health))
 }
