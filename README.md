@@ -15,6 +15,6 @@ cargo run --bin cli -- migration apply
   - [x] 管理管理员界面
 - [x] bot
   - [x] 权限指令只能私聊触发
-- [ ] 日志系统
+- [x] 日志系统
 - [ ] 配置
 
